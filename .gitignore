@@ -1,0 +1,17 @@
+# Local credentials and runtime data
+.env
+.env.*
+!.env.example
+.local/
+.tools/
+*.log
+.idea/
+.vscode/
+*.iml
+**/target/
+**/node_modules/
+**/dist/
+**/unpackage/
+**/.DS_Store
+**/project.private.config.json
+coverage/

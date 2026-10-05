@@ -1,0 +1,11 @@
+{
+  "name": "dental-appointment-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local verification for the dental clinic appointment project",
+  "scripts": {
+    "test:api": "node --test tests/api.integration.test.mjs",
+    "test:ui": "playwright test"
+  },
+  "devDependencies": { "@playwright/test": "1.63.0" }
+}

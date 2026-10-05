@@ -1,0 +1,5 @@
+app:
+  demo-enabled: ${APP_DEMO_LOGIN_ENABLED:true}
+logging:
+  level:
+    com.dental: INFO

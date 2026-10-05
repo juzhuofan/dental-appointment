@@ -1,0 +1,16 @@
+{
+  "name": "口腔诊所预约",
+  "appid": "",
+  "description": "口腔诊所门诊预约系统患者端",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "vueVersion": "3",
+  "mp-weixin": {
+    "appid": "wxd024dd8ce6863e5a",
+    "setting": { "urlCheck": false, "es6": true, "minified": true },
+    "usingComponents": true
+  },
+  "h5": { "title": "口腔诊所预约", "router": { "mode": "hash" } },
+  "uniStatistics": { "enable": false }
+}

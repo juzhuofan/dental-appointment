@@ -1,0 +1,29 @@
+{
+  "pages": [
+    { "path": "pages/home/index", "style": { "navigationBarTitleText": "微笑口腔", "enablePullDownRefresh": true } },
+    { "path": "pages/appointments/index", "style": { "navigationBarTitleText": "我的预约", "enablePullDownRefresh": true } },
+    { "path": "pages/me/index", "style": { "navigationBarTitleText": "个人中心" } },
+    { "path": "pages/login/index", "style": { "navigationBarTitleText": "欢迎登录" } },
+    { "path": "pages/doctors/index", "style": { "navigationBarTitleText": "选择医生", "enablePullDownRefresh": true } },
+    { "path": "pages/doctor/index", "style": { "navigationBarTitleText": "医生与号源" } },
+    { "path": "pages/confirm/index", "style": { "navigationBarTitleText": "确认预约" } },
+    { "path": "pages/result/index", "style": { "navigationBarTitleText": "预约已提交" } },
+    { "path": "pages/appointment/index", "style": { "navigationBarTitleText": "预约详情" } },
+    { "path": "pages/profile/index", "style": { "navigationBarTitleText": "就诊资料" } },
+    { "path": "pages/notice/index", "style": { "navigationBarTitleText": "诊所公告" } }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#f7f9f7",
+    "backgroundColor": "#f7f9f7",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#7a8b86", "selectedColor": "#12836d", "backgroundColor": "#ffffff", "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页" },
+      { "pagePath": "pages/appointments/index", "text": "预约" },
+      { "pagePath": "pages/me/index", "text": "我的" }
+    ]
+  }
+}

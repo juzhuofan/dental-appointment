@@ -1,0 +1,17 @@
+<template>
+  <view class="page page--bottom"><view class="eyebrow">PATIENT PROFILE</view><view class="title top-space">完善就诊资料</view><view class="subtitle">一个账号对应一位就诊人，预约时自动带入资料</view><view v-if="loading" class="loading">正在加载资料…</view><view v-else-if="error" class="error-card section">{{ error }}<button class="btn btn-outline btn-small" @click="load">重新加载</button></view><template v-else><view class="card section"><view class="field"><text class="field-label">就诊人姓名 *</text><input v-model="profile.realName" class="input" maxlength="80" placeholder="请输入虚构的就诊人姓名" /></view><view class="field"><text class="field-label">联系电话 *</text><input v-model="profile.phone" class="input" type="number" maxlength="11" placeholder="请输入 11 位手机号" /></view><view class="field"><text class="field-label">性别</text><picker :range="genderLabels" :value="profile.gender || 0" @change="profile.gender = Number($event.detail.value)"><view class="picker-value">{{ genderLabels[profile.gender || 0] }}<text class="muted">›</text></view></picker></view><view class="field"><text class="field-label">出生日期（选填）</text><view class="row between"><picker class="flex-1" mode="date" :value="profile.birthDate || '2000-01-01'" start="1900-01-01" :end="today" @change="profile.birthDate = $event.detail.value"><view class="picker-value">{{ profile.birthDate || '请选择出生日期' }}<text class="muted">›</text></view></picker><text v-if="profile.birthDate" class="link clear-date" @click="profile.birthDate = null">清空</text></view></view><view class="field"><text class="field-label">备注（选填）</text><textarea v-model="profile.remark" class="textarea" maxlength="255" placeholder="就诊相关备注，最多 255 字" /><view class="muted small text-right">{{ (profile.remark || '').length }}/255</view></view></view><view class="hint section">当前为毕业设计本地演示系统，请填写虚构姓名与手机号。修改个人资料不会改变已提交预约中的就诊人快照。</view><view class="bottom-action"><button class="btn btn-primary" :loading="saving" :disabled="saving" @click="save">{{ saving ? '正在保存…' : '保存就诊资料' }}</button></view></template></view>
+</template>
+<script setup>
+import { ref } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
+import { api, notifyError } from '../../utils/request';
+import { ensureLogin } from '../../utils/session';
+import { dateKey, profilePayload, validateProfile } from '../../utils/format';
+const profile = ref({ realName: '', phone: '', gender: 0, birthDate: null, remark: '' }); const loading = ref(true); const saving = ref(false); const error = ref(''); const genderLabels = ['未填写', '男', '女']; const today = dateKey(new Date());
+async function load() { loading.value = true; error.value = ''; try { profile.value = { ...profile.value, ...(await api.profile()) }; } catch (e) { error.value = e.message; } finally { loading.value = false; } }
+async function save() { if (saving.value) return; const invalid = validateProfile(profile.value); if (invalid) { uni.showToast({ title: invalid, icon: 'none' }); return; } saving.value = true; try { profile.value = await api.saveProfile(profilePayload(profile.value)); uni.showToast({ title: '资料已保存', icon: 'success' }); } catch (e) { notifyError(e); } finally { saving.value = false; } }
+onLoad(() => { if (ensureLogin('/pages/profile/index')) load(); else loading.value = false; });
+</script>
+<style scoped>
+.title { font-size: 36rpx; margin-top: 16rpx; }.picker-value { height: 60rpx; display: flex; align-items: center; justify-content: space-between; font-size: 29rpx; }.clear-date { margin-left: 30rpx; }.text-right { text-align: right; }
+</style>
