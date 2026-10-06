@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Build-Local.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\Start-Local.ps1
 ```
 
-首次构建需要下载 Maven/npm 依赖，后续构建可以加 `-SkipInstall` 跳过 npm 重装。更新已运行工程前，先执行停止脚本，避免 Windows 锁定后端 JAR。Maven 优先使用 `.env.local` 的 MAVEN_HOME 或 PATH 中的 Maven；本机已配置 IDEA 附带的 Maven。其他电脑未安装 Maven 时可使用官方 Wrapper（固定 3.9.11，首次需下载）。缓存写入项目本地目录。
+首次构建需要下载 Maven/npm 依赖，后续构建可以加 `-SkipInstall` 跳过 npm 重装。更新已运行工程前，先执行停止脚本，避免 Windows 锁定后端 JAR。Maven 优先使用 `.env.local` 的 MAVEN_HOME 或 PATH 中的 Maven；当前机器通过 MAVEN_HOME 使用本机 Maven 3.10.0。Maven 会先从 `settings.xml` 配置的本地仓库读取依赖，再从阿里云镜像下载；当前机器配置路径为 `D:\itApps\.m2\repository`。其他电脑未安装 Maven 时可使用官方 Wrapper（固定 3.9.11，首次需下载）。npm 缓存写入项目本地目录。
 
 启动后访问：
 

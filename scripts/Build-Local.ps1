@@ -14,7 +14,7 @@ if (Test-Path -LiteralPath $statePath) {
 }
 $mavenCommand = Resolve-MavenCommand
 Push-Location (Join-Path $ProjectRoot 'backend')
-try { Invoke-CheckedCommand $mavenCommand @('verify', '-B', '-ntp', ('-Dmaven.repo.local=' + (Join-Path $ProjectRoot '.local\m2'))) } finally { Pop-Location }
+try { Invoke-CheckedCommand $mavenCommand @('verify', '-B', '-ntp') } finally { Pop-Location }
 foreach ($clientProject in @('admin-web', 'miniapp')) {
     Push-Location (Join-Path $ProjectRoot $clientProject)
     try {
