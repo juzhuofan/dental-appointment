@@ -1,21 +1,28 @@
 server:
-  port: ${SERVER_PORT:8080}
+  port: 8080
+
 spring:
+  profiles:
+    active: local
   application:
     name: dental-appointment
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   datasource:
-    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:dental_appointment}?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:mysql://127.0.0.1:3306/dental_appointment?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
+    username: 'root'
+    password: ''
     hikari:
       maximum-pool-size: 12
       minimum-idle: 2
       transaction-isolation: TRANSACTION_READ_COMMITTED
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: 127.0.0.1
+      port: 6379
+      password: ''
       timeout: 700ms
       connect-timeout: 700ms
   jackson:
@@ -25,14 +32,44 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-mybatis:
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
 app:
-  jwt-secret: ${JWT_SECRET}
-  token-hours: 8
-  demo-enabled: false
+  wechat:
+    enabled: true
+    app-id: wxd024dd8ce6863e5a
+    app-secret: ''
+    # 当前为个人主体：使用微信身份与头像登录，手机号在就诊资料中填写。
+    phone-number-enabled: false
+  oss:
+    # 先填写实际 Bucket 和凭证，再将 enabled 改为 true；以下均为静态配置。
+    enabled: true
+    endpoint: https://oss-cn-beijing.aliyuncs.com
+    region: cn-beijing
+    bucket-name: dental-backend
+    access-key-id: ''
+    access-key-secret: ''
+    # 留空时使用 Bucket 的外网地址；也可填写已绑定的 HTTPS 自定义域名。
+    public-base-url: ''
+    object-prefix: dental/uploads
+    max-file-size: 10MB
+    allowed-extensions: [jpg, jpeg, png, gif, webp, pdf, doc, docx, xls, xlsx, txt, csv, zip]
+  jwt:
+    secret: ''
+    access-token-minutes: 480
+  demo-login:
+    enabled: false
   cors-origins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174
+
 management:
   endpoints:
     web:
@@ -41,6 +78,7 @@ management:
   endpoint:
     health:
       show-details: never
+
 springdoc:
   api-docs:
     path: /v3/api-docs

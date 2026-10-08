@@ -5,7 +5,7 @@
 ## 工程目录
 
 ```text
-backend/       Java 17 / Spring Boot / MyBatis / Spring Security 服务端
+backend/       Java 17 / Spring Boot / MyBatis-Plus / Spring Security 服务端
 admin-web/     Vue 3 / TypeScript / Element Plus 管理后台
 miniapp/       uni-app Vue 3 微信小程序及辅助 H5 预览
 scripts/       Windows 本地构建、启动、停止和验证脚本
@@ -20,7 +20,7 @@ docs/          设计文档、接口契约、实现约定与验证记录
 
 必须使用 Java 17、Node.js 24.18.0、MySQL 8.0.45、Redis 3.2.100。Redis 为本机 Windows 移植版，本项目只使用基础缓存命令。管理端与小程序依赖分别固定在各自的 package-lock.json 中；详细 Java 依赖见 backend/pom.xml。
 
-本机配置已放入 `.env.local`，其中 JAVA_HOME 为 `C:\jdk\jdk17`。后端和所有脚本均读取该文件；不要将其加入 Git。数据库名称为 `dental_appointment`，数据库表通过 Flyway 自动创建。后端初次启动会创建虚构演示科室、医生、未来排班以及管理员/医生账号。
+后端公共配置位于 `backend/src/main/resources/application.yml`；MySQL、Redis、JWT、OSS 和微信的真实凭据写入本机静态文件 `backend/src/main/resources/application-local.yml`，该文件受 Git 忽略。首次使用时复制旁边的 `application-local.example.yml` 并填写。工具脚本仍从 `.env.local` 读取 JAVA_HOME、Maven 路径和本地初始化账号，其中 JDK 为 `C:\jdk\jdk17`。数据库名称为 `dental_appointment`，数据库表通过 Flyway 自动创建。local 环境可初始化诊所演示科室、医生、排班及管理员/医生账号；微信患者的身份、头像及就诊资料不使用演示数据。
 
 如在另一台电脑运行，先复制 `.env.example` 为 `.env.local`，填写连接密码、随机 JWT_SECRET、DEMO_ADMIN_PASSWORD 和 DEMO_DOCTOR_PASSWORD，再创建空数据库：
 
@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Build-Local.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\Start-Local.ps1
 ```
 
-首次构建需要下载 Maven/npm 依赖，后续构建可以加 `-SkipInstall` 跳过 npm 重装。更新已运行工程前，先执行停止脚本，避免 Windows 锁定后端 JAR。Maven 优先使用 `.env.local` 的 MAVEN_HOME 或 PATH 中的 Maven；当前机器通过 MAVEN_HOME 使用本机 Maven 3.10.0。Maven 会先从 `settings.xml` 配置的本地仓库读取依赖，再从阿里云镜像下载；当前机器配置路径为 `D:\itApps\.m2\repository`。其他电脑未安装 Maven 时可使用官方 Wrapper（固定 3.9.11，首次需下载）。npm 缓存写入项目本地目录。
+首次构建需要下载 Maven/npm 依赖，后续构建可以加 `-SkipInstall` 跳过 npm 重装。更新已运行工程前，先执行停止脚本，避免 Windows 锁定后端 JAR。Maven 优先使用 `.env.local` 的 MAVEN_HOME 或 PATH 中的 Maven；当前机器通过 MAVEN_HOME 使用本机 Maven 3.10.0。Maven 会先从 `settings.xml` 配置的本地仓库读取依赖，再从阿里云镜像下载；当前机器配置路径为 `D:\itApps\.m2\repository`。其他电脑未安装 Maven 时可使用 Wrapper（固定 3.10.0，首次需下载）。npm 缓存写入项目本地目录。
 
 启动后访问：
 
@@ -64,12 +64,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Stop-Local.ps1
 
 微信开发者工具本地运行时关闭“校验合法域名”。默认 API 地址为 `http://127.0.0.1:8080/api/v1`，可以在 miniapp 环境配置中调整。真机联调需要将地址换成电脑局域网 IP，并保证手机能访问后端；当前交付重点是本机开发者工具演示。
 
-患者点击“一键登录，开始预约”即可创建或恢复当前设备的演示患者，不需要真实微信授权。登录设备标识与令牌保存在小程序本地存储，后端只赋予患者权限。演示登录可通过 `APP_DEMO_LOGIN_ENABLED=false` 关闭；初版不需要微信 AppSecret。
+打开小程序时检查已有 token，有效用户直接进入；未登录显示微信一键登录和暂未开放的手机号登录选项。用户点击微信登录并确认当前微信账号后才验证身份。微信不提供小程序内多账号选择列表；登录后可在“我的”选用微信建议昵称、头像或自行设置。账号可以维护多个就诊人，预约时选择实际就诊者。当前个人主体不获取微信手机号，用户在就诊资料中填写联系电话。演示点击登录已关闭，配置和微信后台设置见 [微信登录说明](docs/WECHAT-LOGIN.md)，真机连接修复步骤见 [真机调试说明](docs/REAL-DEVICE-DEBUG.md)。
 
 ## 建议演示流程
 
 1. 管理员登录后台，查看或维护科室、医生和未来排班，发布可预约时段。
-2. 患者在小程序点击直接登录，确认本人就诊姓名和手机号。
+2. 患者在真实微信小程序中点击微信登录，完善本人就诊姓名和联系电话，头像可选。
 3. 选择医生和日期、查看号源，提交预约，在“我的预约”查看 PENDING 状态。
 4. 管理员在预约管理中确认预约，医生账号可查看本人预约并完成接诊或登记爽约。
 5. 患者在取消截止时间前取消预约，观察排班号源只恢复一次。

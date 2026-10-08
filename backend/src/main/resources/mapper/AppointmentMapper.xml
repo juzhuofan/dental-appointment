@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dental.appointment.mapper.AppointmentMapper">
+    <resultMap id="appointmentMap" type="com.dental.appointment.entity.AppointmentEntity">
+        <id column="id" property="id"/>
+        <result column="appointment_no" property="appointmentNo"/>
+        <result column="patient_user_id" property="patientUserId"/>
+        <result column="patient_profile_id" property="patientProfileId"/>
+        <result column="schedule_id" property="scheduleId"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="patient_name_snapshot" property="patientNameSnapshot"/>
+        <result column="patient_phone_snapshot" property="patientPhoneSnapshot"/>
+        <result column="doctor_name_snapshot" property="doctorNameSnapshot"/>
+        <result column="department_name_snapshot" property="departmentNameSnapshot"/>
+        <result column="start_time_snapshot" property="startTimeSnapshot"/>
+        <result column="end_time_snapshot" property="endTimeSnapshot"/>
+        <result column="chief_complaint" property="chiefComplaint"/>
+        <result column="status" property="status"/>
+        <result column="appointment_active_key" property="appointmentActiveKey"/>
+        <result column="cancel_reason" property="cancelReason"/>
+        <result column="cancelled_at" property="cancelledAt"/>
+        <result column="handled_by" property="handledBy"/>
+        <result column="handled_at" property="handledAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="cancel_before_minutes" property="cancelBeforeMinutes"/>
+    </resultMap>
+
+    <resultMap id="bookableScheduleMap" type="com.dental.appointment.vo.BookableScheduleVO">
+        <id column="id" property="id"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="doctor_name" property="doctorName"/>
+        <result column="department_name" property="departmentName"/>
+        <result column="doctor_status" property="doctorStatus"/>
+        <result column="department_status" property="departmentStatus"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="total_slots" property="totalSlots"/>
+        <result column="booked_slots" property="bookedSlots"/>
+        <result column="status" property="status"/>
+        <result column="cancel_before_minutes" property="cancelBeforeMinutes"/>
+    </resultMap>
+
+    <resultMap id="patientMap" type="com.dental.appointment.vo.PatientSnapshotVO">
+        <id column="id" property="id"/>
+        <result column="real_name" property="realName"/>
+        <result column="phone" property="phone"/>
+    </resultMap>
+
+    <resultMap id="statusCountMap" type="com.dental.appointment.vo.StatusCountVO">
+        <constructor><arg column="status" javaType="java.lang.String"/>
+            <arg column="count" javaType="_long"/></constructor>
+    </resultMap>
+
+    <resultMap id="dailyTrendMap" type="com.dental.appointment.vo.DailyTrendVO">
+        <constructor><arg column="date" javaType="java.lang.String"/>
+            <arg column="count" javaType="_long"/></constructor>
+    </resultMap>
+
+    <select id="lockActiveUser" resultType="java.lang.Integer">
+        SELECT status FROM sys_user WHERE id = #{userId} AND deleted = 0 FOR UPDATE
+    </select>
+
+    <select id="findPatientProfile" resultMap="patientMap">
+        SELECT id, real_name, phone FROM patient_profile
+        WHERE id = #{profileId} AND user_id = #{userId} AND deleted = 0
+    </select>
+
+    <select id="lockScheduleForBooking" resultMap="bookableScheduleMap">
+        SELECT s.id, s.doctor_id, s.department_id, d.name AS doctor_name,
+               dep.name AS department_name, d.status AS doctor_status,
+               dep.status AS department_status, s.start_time, s.end_time,
+               s.total_slots, s.booked_slots, s.status, s.cancel_before_minutes
+        FROM doctor_schedule s
+        INNER JOIN doctor d ON d.id = s.doctor_id AND d.deleted = 0
+        INNER JOIN department dep ON dep.id = s.department_id AND dep.deleted = 0
+        WHERE s.id = #{scheduleId} AND s.deleted = 0
+        FOR UPDATE OF s
+    </select>
+
+    <select id="lockScheduleId" resultType="java.lang.Long">
+        SELECT id FROM doctor_schedule WHERE id = #{scheduleId} FOR UPDATE
+    </select>
+
+    <update id="reserveSlot">
+        UPDATE doctor_schedule SET booked_slots = booked_slots + 1,
+            version = version + 1, updated_at = #{now}
+        WHERE id = #{scheduleId} AND deleted = 0 AND status = 'PUBLISHED'
+          AND start_time &gt; DATE_ADD(#{now}, INTERVAL cancel_before_minutes MINUTE)
+          AND booked_slots &lt; total_slots
+    </update>
+
+    <update id="releaseSlot">
+        UPDATE doctor_schedule SET booked_slots = booked_slots - 1,
+            version = version + 1, updated_at = #{now}
+        WHERE id = #{scheduleId} AND booked_slots &gt; 0
+    </update>
+
+    <select id="findDetail" resultMap="appointmentMap">
+        SELECT a.*, s.cancel_before_minutes
+        FROM appointment a LEFT JOIN doctor_schedule s ON s.id = a.schedule_id
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+    <select id="lockAppointment" resultMap="appointmentMap">
+        SELECT a.*, s.cancel_before_minutes
+        FROM appointment a LEFT JOIN doctor_schedule s ON s.id = a.schedule_id
+        WHERE a.id = #{id} AND a.deleted = 0
+        FOR UPDATE OF a
+    </select>
+
+    <sql id="appointmentWhere">
+        FROM appointment a LEFT JOIN doctor_schedule s ON s.id = a.schedule_id
+        WHERE a.deleted = 0
+        <if test="patientScope != null">AND a.patient_user_id = #{patientScope}</if>
+        <if test="doctorScope != null">AND a.doctor_id = #{doctorScope}</if>
+        <if test="filter.status != null and filter.status != ''">AND a.status = #{filter.status}</if>
+        <if test="filter.doctorId != null">AND a.doctor_id = #{filter.doctorId}</if>
+        <if test="filter.departmentId != null">AND a.department_id = #{filter.departmentId}</if>
+        <if test="fromUtc != null">AND a.start_time_snapshot &gt;= #{fromUtc}</if>
+        <if test="toUtc != null">AND a.start_time_snapshot &lt; #{toUtc}</if>
+        <if test="filter.keyword != null and filter.keyword != ''">
+            AND (a.appointment_no LIKE CONCAT('%', #{filter.keyword}, '%')
+                OR a.patient_name_snapshot LIKE CONCAT('%', #{filter.keyword}, '%')
+                OR a.patient_phone_snapshot LIKE CONCAT('%', #{filter.keyword}, '%'))
+        </if>
+    </sql>
+
+    <select id="findPage" resultMap="appointmentMap">
+        SELECT a.*, s.cancel_before_minutes
+        <include refid="appointmentWhere"/>
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(*) <include refid="appointmentWhere"/>
+    </select>
+
+    <select id="findActiveByScheduleForUpdate" resultMap="appointmentMap">
+        SELECT a.*, s.cancel_before_minutes
+        FROM appointment a INNER JOIN doctor_schedule s ON s.id = a.schedule_id
+        WHERE a.schedule_id = #{scheduleId} AND a.deleted = 0
+          AND a.status IN ('PENDING', 'CONFIRMED')
+          <if test="patientUserId != null">AND a.patient_user_id = #{patientUserId}</if>
+        ORDER BY a.id FOR UPDATE OF a
+    </select>
+
+    <select id="findActiveScheduleIdsByDepartment" resultType="java.lang.Long">
+        SELECT DISTINCT schedule_id FROM appointment
+        WHERE department_id = #{departmentId} AND deleted = 0
+          AND status IN ('PENDING', 'CONFIRMED') ORDER BY schedule_id
+    </select>
+
+    <select id="findActiveScheduleIdsByDoctor" resultType="java.lang.Long">
+        SELECT DISTINCT schedule_id FROM appointment
+        WHERE doctor_id = #{doctorId} AND deleted = 0
+          AND status IN ('PENDING', 'CONFIRMED') ORDER BY schedule_id
+    </select>
+
+    <select id="findActiveScheduleIdsByPatient" resultType="java.lang.Long">
+        SELECT DISTINCT schedule_id FROM appointment
+        WHERE patient_user_id = #{patientUserId} AND deleted = 0
+          AND status IN ('PENDING', 'CONFIRMED') ORDER BY schedule_id
+    </select>
+
+    <select id="findDoctorIdByUserId" resultType="java.lang.Long">
+        SELECT id FROM doctor WHERE user_id = #{userId} AND deleted = 0
+    </select>
+
+    <update id="transition">
+        UPDATE appointment
+        SET status = #{toStatus}, appointment_active_key = #{activeKey},
+            cancel_reason = #{cancelReason}, cancelled_at = #{cancelledAt},
+            handled_by = #{handledBy}, handled_at = #{handledAt}, updated_at = #{now}
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE appointment SET deleted = 1, appointment_active_key = NULL, updated_at = #{now}
+        WHERE id = #{id} AND deleted = 0
+          AND status NOT IN ('PENDING', 'CONFIRMED')
+    </update>
+
+    <select id="countToday" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM appointment WHERE deleted = 0
+          AND start_time_snapshot &gt;= #{fromUtc} AND start_time_snapshot &lt; #{toUtc}
+          <if test="doctorScope != null">AND doctor_id = #{doctorScope}</if>
+    </select>
+
+    <select id="countPending" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM appointment WHERE deleted = 0 AND status = 'PENDING'
+          <if test="doctorScope != null">AND doctor_id = #{doctorScope}</if>
+    </select>
+
+    <select id="countPatients" resultType="java.lang.Long">
+        <choose>
+            <when test="doctorScope == null">
+                SELECT COUNT(*) FROM patient_profile WHERE deleted = 0
+            </when>
+            <otherwise>
+                SELECT COUNT(DISTINCT patient_profile_id) FROM appointment
+                WHERE deleted = 0 AND doctor_id = #{doctorScope}
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="countDoctors" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM doctor WHERE deleted = 0 AND status = 1
+          <if test="doctorScope != null">AND id = #{doctorScope}</if>
+    </select>
+
+    <select id="statusCounts" resultMap="statusCountMap">
+        SELECT status, COUNT(*) AS count FROM appointment WHERE deleted = 0
+          <if test="doctorScope != null">AND doctor_id = #{doctorScope}</if>
+        GROUP BY status ORDER BY status
+    </select>
+
+    <select id="dailyTrend" resultMap="dailyTrendMap">
+        SELECT DATE_FORMAT(DATE_ADD(created_at, INTERVAL 8 HOUR), '%Y-%m-%d') AS date,
+               COUNT(*) AS count
+        FROM appointment WHERE deleted = 0 AND created_at &gt;= #{fromUtc}
+          <if test="doctorScope != null">AND doctor_id = #{doctorScope}</if>
+        GROUP BY DATE_FORMAT(DATE_ADD(created_at, INTERVAL 8 HOUR), '%Y-%m-%d')
+        ORDER BY date
+    </select>
+</mapper>

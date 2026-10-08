@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dental.doctor.mapper.DoctorMapper">
+    <select id="lockById" resultType="com.dental.doctor.entity.DoctorEntity">
+        SELECT id, user_id, department_id, name, title, specialty, introduction,
+               avatar_url, status, deleted, created_at, updated_at
+        FROM doctor
+        WHERE id = #{id} AND deleted = 0
+        FOR UPDATE
+    </select>
+    <select id="lockByDepartment" resultType="com.dental.doctor.entity.DoctorEntity">
+        SELECT id, user_id, department_id, name, title, specialty, introduction,
+               avatar_url, status, deleted, created_at, updated_at
+        FROM doctor
+        WHERE department_id = #{departmentId} AND deleted = 0
+        ORDER BY id
+        FOR UPDATE
+    </select>
+</mapper>

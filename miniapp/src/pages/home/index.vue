@@ -12,6 +12,7 @@
       <view v-if="notices.length > 1" class="section"><text class="section-title">诊所公告</text><view v-for="notice in notices.slice(1, 4)" :key="notice.id" class="notice-row" @click="openNotice(notice)"><text>{{ notice.title }}</text><text class="muted">›</text></view></view>
       <view class="end-note">为每一份信任，认真对待每一次预约</view>
     </template>
+    <LoginDialog :visible="authState.dialogVisible" @success="loggedIn" />
   </view>
 </template>
 <script setup>
@@ -19,7 +20,10 @@ import { ref } from 'vue';
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import DoctorCard from '../../components/DoctorCard.vue';
 import EmptyState from '../../components/EmptyState.vue';
+import LoginDialog from '../../components/LoginDialog.vue';
 import { api } from '../../utils/request';
+import { bootstrapAuth, offerAccountProfileSetup } from '../../utils/auth';
+import { authState } from '../../utils/session';
 const clinic = ref({}); const departments = ref([]); const doctors = ref([]); const notices = ref([]); const loading = ref(true); const error = ref('');
 async function load() {
   loading.value = true; error.value = '';
@@ -32,7 +36,11 @@ const openDoctors = id => uni.navigateTo({ url: `/pages/doctors/index${id ? `?de
 const openDoctor = doctor => uni.navigateTo({ url: `/pages/doctor/index?id=${doctor.id}` });
 const openNotice = notice => uni.navigateTo({ url: `/pages/notice/index?id=${notice.id}` });
 function callClinic() { if (clinic.value.phone) uni.makePhoneCall({ phoneNumber: clinic.value.phone }); }
-onShow(load); onPullDownRefresh(load);
+async function loggedIn(user) {
+  if (await offerAccountProfileSetup(user)) uni.switchTab({ url: '/pages/me/index' });
+  else uni.showToast({ title: '微信登录成功', icon: 'success' });
+}
+onShow(() => { load(); bootstrapAuth(); }); onPullDownRefresh(load);
 </script>
 <style scoped>
 .welcome { display: flex; align-items: center; justify-content: space-between; margin: 8rpx 0 28rpx; }

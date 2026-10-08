@@ -1,38 +1,56 @@
 # 后端工程
 
-本工程使用 Java 17、Spring Boot 3.5.16、MyBatis 3.0.5、MySQL 8.0.45，以及 Redis 3.2.100 的 RESP2 协议。Maven 编译强制 Java 17。
+Java 17、Spring Boot 3.5.16、MyBatis-Plus 3.5.17、MySQL 8.0.45 和 Redis 3.2.100。项目使用 Maven 3.10.0 构建，数据库由 Flyway 管理，接口前缀为 `/api/v1`。
 
-从项目根目录运行 `scripts/Start-Local.ps1` 可加载被 Git 忽略的本地配置并启动工程。密码、JWT 签名密钥和演示账号密码均由环境变量提供。后端不会读取或使用微信密钥；本地患者通过设备标识演示登录。
+## 目录与职责
 
-## 模块
+```text
+src/main/java/com/dental/
+├─ DentalAppointmentApplication.java
+├─ common/        R<T>、分页、统一异常、公共实体字段与时间转换
+├─ config/        Spring Security、Redis、Jackson、CORS、OpenAPI、MyBatis-Plus、OSS
+├─ security/      Bearer token 过滤器、当前用户与权限支持
+├─ auth/          登录、演示登录、退出及令牌失效
+├─ user/          账号、角色及患者资料
+├─ department/    科室与诊所设置
+├─ doctor/        医生档案
+├─ schedule/      排班与号源
+├─ appointment/   预约、取消、状态处理与统计
+├─ notice/        公告
+├─ file/          通用阿里云 OSS 文件上传、上传结果链接
+└─ audit/         操作日志
+```
 
-- `web`：JSON 请求 DTO 和 HTTP 控制器，只调用服务。
-- `service`：认证、基础资料、排班、预约、用户、患者资料与操作日志；事务放在服务公共方法。
-- `persistence`：MyBatis Mapper 和仅接受白名单标识符的 SQL Provider；所有数据通过参数绑定。
-- `security`：JWT 签名与认证过滤器；每次请求再次检查数据库账号、角色和令牌撤销状态。
-- `common`：`R<T>`、分页、统一异常、UTC/上海时区转换、预约状态机。
-- `config`：安全、明确本地来源的跨域、Redis RESP2、本地演示数据。
-- `db/migration`：Flyway 迁移，11 张业务表以及令牌、预约幂等两张支撑表。全部包含逻辑删除、创建时间、修改时间。
+数据库业务目录下都有 `controller/`、`service/`、`mapper/`、`entity/`、`dto/`、`vo/`。普通持久化操作由 service 调用 MyBatis-Plus；复杂的行锁、分页联查及预约统计位于 `src/main/resources/mapper/*.xml`。建表与初始化 SQL 位于 `src/main/resources/db/migration/`。所有业务表使用 `deleted` 逻辑删除标志和 `created_at`、`updated_at` 字段；已执行的 Flyway 迁移不得直接修改。
 
-## 预约一致性
+`file` 为无数据库持久化的通用上传模块，包含 `controller/`、`service/`、`vo/`，无需建立 Mapper、数据库实体或迁移脚本。业务层注入 `FileUploadService` 后调用 `upload(file).url()`，再由原有业务服务把链接保存到对应字段。
 
-创建预约先锁患者账号，随后锁幂等请求（若提供幂等键）、排班；预约状态变更统一按排班→预约顺序加锁。排班行锁、条件号源更新、活动预约唯一索引共同防止重复与超额。有效状态仅为 `PENDING`、`CONFIRMED`，进入任何终态均释放一次号源。
+## OSS 文件上传
 
-关闭、停诊或删除排班会在一个事务内取消活动预约。停用科室、医生及账号同样会处理关联活动预约。预约历史保存医生、科室、患者和时段快照，业务删除不会物理移除行。
+`POST /api/v1/files/upload` 接收 `multipart/form-data` 的单文件字段 `file`，使用现有 Bearer 登录认证，响应为 `R<FileUploadVO>`。文件二进制不使用 JSON 的 `R.data` 请求包装。默认单文件 10 MiB，请求 11 MiB，支持图片、PDF 和常用文档扩展名。
 
-Redis 仅缓存诊所公开信息，缓存失效自动回查 MySQL。预约一致性和登录退出不会依赖 Redis。`local` 模式使用虚构资料和未来七天排班；退出 `local` 模式后演示登录及数据初始化不启用。
+`application.yml` 的 `app.oss` 保存非敏感静态配置；真实 AccessKey ID/Secret 保存在 Git 忽略的 `application-local.yml`。首次使用先复制 `application-local.example.yml` 并填写。更换部署环境时填写该环境的凭据、Bucket、Endpoint 和 region，再重启。关闭上传时接口返回 503。返回链接不加密，不带临时签名；模块不修改云端读权限，私有对象的链接无法匿名打开。
 
-## 构建和验证
+完整步骤、最小 RAM 权限策略、前端调用和 Java 复用方式见 [OSS 文件上传说明](../docs/OSS-UPLOAD.md)。SDK 上传客户端采用单例，关闭 Spring 容器时释放连接池。2026-10-07 Maven verify 的 28 项测试通过，真实 SDK 本地 HTTP 上传和真实 OSS 上传均验证成功；当前测试对象匿名访问返回 403。
 
-使用 JDK 17 执行 `mvn test` 或 `mvn package`。本地环境可使用项目根目录的启动与验证脚本。单元测试检查状态机终态、包装对象的级联校验、诊所日期的 UTC 范围以及 SQL 白名单。跨接口与并发验证由根目录 `tests/api.integration.test.mjs` 执行。
+## 本机 Maven 与 IDEA
 
-接口契约见 `../docs/API-CONTRACT.md`，运行后的 OpenAPI 地址为 `http://localhost:8080/v3/api-docs`，Swagger UI 为 `http://localhost:8080/swagger-ui/index.html`。运维健康地址为 `http://localhost:8080/actuator/health`。
+本机 Maven Home：`D:\itApps\maven\apache-maven-3.10.0`。在 IDEA 中打开本目录的 `pom.xml`，项目 SDK、Maven Importer 和 Maven Runner 均选择 `C:\jdk\jdk17`，Maven 用户设置文件选择 `D:\itApps\maven\apache-maven-3.10.0\conf\settings.xml`。该设置文件把本地仓库设在 `D:\itApps\.m2\repository`，缺少的依赖从阿里云 Maven 镜像获取。修改设置后在 Maven 工具窗口执行“重新加载所有 Maven 项目”。
 
-## 官方参考
+本机命令行构建：
 
-- [Spring Boot 官方仓库](https://github.com/spring-projects/spring-boot)
-- [MyBatis Spring Boot Starter 官方仓库与版本兼容说明](https://github.com/mybatis/spring-boot-starter)
-- [阿里巴巴 Java 开发手册公开仓库](https://github.com/alibaba/Alibaba-Java-Coding-Guidelines)
-- [MySQL InnoDB 锁与事务文档](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html)
+```powershell
+$env:JAVA_HOME = 'C:\jdk\jdk17'
+& 'D:\itApps\maven\apache-maven-3.10.0\bin\mvn.cmd' `
+  -s 'D:\itApps\maven\apache-maven-3.10.0\conf\settings.xml' verify
+```
 
-代码为本项目独立实现，未复制第三方预约系统源码。
+从项目根目录运行 `scripts/Build-Local.ps1` 可同时构建后端和两个前端。运行前在根目录准备 `.env.local`，填入本机 MySQL、Redis、JWT 密钥与演示账号密码。不要提交该文件。`local` 环境仅用于本地演示账号和虚构诊所数据初始化。
+
+## 接口与验证
+
+患者端已接入真实微信登录，非敏感设置位于 `application.yml` 的 `app.wechat`，AppSecret 位于本机 `application-local.yml`，演示点击登录默认关闭。启动只检查已有 token，未登录显示选项；用户点击微信登录后才验证身份，不强制头像。当前个人主体的手机号在就诊资料中填写，头像可在个人中心单独上传 OSS。微信 `text/plain` JSON 响应由字符串读取后解析，避免误报网络连接失败。头像展示使用临时签名地址，数据库保存普通 OSS URL。微信后台配置与真机验收见 [WECHAT-LOGIN.md](../docs/WECHAT-LOGIN.md)。
+
+JSON 写请求使用 `{ "data": <DTO> }`，响应统一为 `R<T>`：`code`、`message`、`data`、`traceId`。查询参数在 URL 中；预约幂等键使用 `Idempotency-Key` 请求头。完整路径与字段以 [接口契约](../docs/API-CONTRACT.md) 为准。
+
+后端单元测试：运行上面的 Maven `verify`。本地服务启动后，在项目根目录执行 `npm run test:api`；管理端和患者端预览同时启动时可执行 `npm run test:ui`。集成测试应使用独立测试数据库，避免影响人工演示数据。

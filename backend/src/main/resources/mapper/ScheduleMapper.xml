@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dental.schedule.mapper.ScheduleMapper">
+    <resultMap id="scheduleMap" type="com.dental.schedule.entity.ScheduleEntity">
+        <id column="id" property="id"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="total_slots" property="totalSlots"/>
+        <result column="booked_slots" property="bookedSlots"/>
+        <result column="status" property="status"/>
+        <result column="cancel_before_minutes" property="cancelBeforeMinutes"/>
+        <result column="version" property="version"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="doctor_name" property="doctorName"/>
+        <result column="department_name" property="departmentName"/>
+    </resultMap>
+
+    <resultMap id="doctorAssignmentMap" type="com.dental.schedule.vo.DoctorAssignmentVO">
+        <id column="doctor_id" property="doctorId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="doctor_status" property="doctorStatus"/>
+    </resultMap>
+
+    <sql id="scheduleColumns">
+        s.id, s.doctor_id, s.department_id, s.start_time, s.end_time,
+        s.total_slots, s.booked_slots, s.status, s.cancel_before_minutes,
+        s.version, s.created_by, s.deleted, s.created_at, s.updated_at,
+        d.name AS doctor_name, dep.name AS department_name
+    </sql>
+
+    <select id="findDoctor" resultMap="doctorAssignmentMap">
+        SELECT id AS doctor_id, department_id, status AS doctor_status
+        FROM doctor WHERE id = #{doctorId} AND deleted = 0
+    </select>
+
+    <select id="lockDepartment" resultType="java.lang.Integer">
+        SELECT status FROM department WHERE id = #{departmentId} AND deleted = 0 FOR UPDATE
+    </select>
+
+    <select id="findDepartmentStatus" resultType="java.lang.Integer">
+        SELECT status FROM department WHERE id = #{departmentId} AND deleted = 0
+    </select>
+
+    <select id="lockDoctor" resultMap="doctorAssignmentMap">
+        SELECT id AS doctor_id, department_id, status AS doctor_status
+        FROM doctor WHERE id = #{doctorId} AND deleted = 0 FOR UPDATE
+    </select>
+
+    <select id="lockSchedule" resultMap="scheduleMap">
+        SELECT s.*, d.name AS doctor_name, dep.name AS department_name
+        FROM doctor_schedule s
+        LEFT JOIN doctor d ON d.id = s.doctor_id
+        LEFT JOIN department dep ON dep.id = s.department_id
+        WHERE s.id = #{id} AND s.deleted = 0
+        FOR UPDATE OF s
+    </select>
+
+    <select id="findPublicSchedule" resultMap="scheduleMap">
+        SELECT <include refid="scheduleColumns"/>
+        FROM doctor_schedule s
+        INNER JOIN doctor d ON d.id = s.doctor_id AND d.deleted = 0 AND d.status = 1
+        INNER JOIN department dep ON dep.id = s.department_id AND dep.deleted = 0 AND dep.status = 1
+        WHERE s.id = #{id} AND s.deleted = 0 AND s.status = 'PUBLISHED'
+          AND s.start_time &gt; DATE_ADD(#{now}, INTERVAL s.cancel_before_minutes MINUTE)
+    </select>
+
+    <sql id="pageFrom">
+        FROM doctor_schedule s
+        INNER JOIN doctor d ON d.id = s.doctor_id
+        INNER JOIN department dep ON dep.id = s.department_id
+        WHERE s.deleted = 0
+        <if test="publicOnly">
+            AND s.status = 'PUBLISHED'
+            AND d.deleted = 0 AND d.status = 1
+            AND dep.deleted = 0 AND dep.status = 1
+            AND s.start_time &gt; DATE_ADD(#{now}, INTERVAL s.cancel_before_minutes MINUTE)
+        </if>
+        <if test="doctorScope != null">AND s.doctor_id = #{doctorScope}</if>
+        <if test="filter.doctorId != null">AND s.doctor_id = #{filter.doctorId}</if>
+        <if test="filter.departmentId != null">AND s.department_id = #{filter.departmentId}</if>
+        <if test="!publicOnly and filter.status != null and filter.status != ''">AND s.status = #{filter.status}</if>
+        <if test="fromUtc != null">AND s.start_time &gt;= #{fromUtc}</if>
+        <if test="toUtc != null">AND s.start_time &lt; #{toUtc}</if>
+    </sql>
+
+    <select id="findPage" resultMap="scheduleMap">
+        SELECT <include refid="scheduleColumns"/>
+        <include refid="pageFrom"/>
+        ORDER BY s.start_time ASC, s.id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(*) <include refid="pageFrom"/>
+    </select>
+
+    <select id="countOverlaps" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM doctor_schedule
+        WHERE doctor_id = #{doctorId} AND deleted = 0
+          AND start_time &lt; #{end} AND end_time &gt; #{start}
+          <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <select id="findScheduleIdsByDoctor" resultType="java.lang.Long">
+        SELECT id FROM doctor_schedule WHERE doctor_id = #{doctorId} AND deleted = 0 ORDER BY id
+    </select>
+
+    <select id="findScheduleIdsByDepartment" resultType="java.lang.Long">
+        SELECT id FROM doctor_schedule WHERE department_id = #{departmentId} AND deleted = 0 ORDER BY id
+    </select>
+
+    <update id="updateStatus">
+        UPDATE doctor_schedule SET status = #{status}, version = version + 1,
+            updated_at = #{now}
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="softDelete">
+        UPDATE doctor_schedule SET status = 'CANCELLED', deleted = 1,
+            version = version + 1, updated_at = #{now}
+        WHERE id = #{id} AND deleted = 0
+    </update>
+</mapper>

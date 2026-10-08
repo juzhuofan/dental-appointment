@@ -1,36 +1,43 @@
 package com.dental.common;
 
-public class BusinessException extends RuntimeException {
-    private final String code;
-    private final int httpStatus;
+import org.springframework.http.HttpStatus;
 
-    public BusinessException(String code, String message, int httpStatus) {
+public class BusinessException extends RuntimeException {
+
+    private final String code;
+    private final HttpStatus status;
+
+    public BusinessException(String code, String message, HttpStatus status) {
         super(message);
         this.code = code;
-        this.httpStatus = httpStatus;
+        this.status = status;
     }
 
-    public String getCode() {
-        return code;
-    }
-
-    public int getHttpStatus() {
-        return httpStatus;
-    }
+    public String getCode() { return code; }
+    public HttpStatus getStatus() { return status; }
+    public int getHttpStatus() { return status.value(); }
 
     public static BusinessException bad(String message) {
-        return new BusinessException("INVALID_ARGUMENT", message, 400);
+        return new BusinessException("INVALID_ARGUMENT", message, HttpStatus.BAD_REQUEST);
     }
 
-    public static BusinessException forbidden() {
-        return new BusinessException("FORBIDDEN", "没有权限执行此操作", 403);
+    public static BusinessException unauthorized(String message) {
+        return new BusinessException("UNAUTHORIZED", message, HttpStatus.UNAUTHORIZED);
     }
 
-    public static BusinessException missing() {
-        return new BusinessException("NOT_FOUND", "记录不存在或已删除", 404);
+    public static BusinessException forbidden(String message) {
+        return new BusinessException("FORBIDDEN", message, HttpStatus.FORBIDDEN);
+    }
+
+    public static BusinessException missing(String message) {
+        return new BusinessException("NOT_FOUND", message, HttpStatus.NOT_FOUND);
+    }
+
+    public static BusinessException conflict(String message) {
+        return conflict("DATA_CONFLICT", message);
     }
 
     public static BusinessException conflict(String code, String message) {
-        return new BusinessException(code, message, 409);
+        return new BusinessException(code, message, HttpStatus.CONFLICT);
     }
 }

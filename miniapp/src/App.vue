@@ -1,5 +1,10 @@
 <script>
-export default { onLaunch() {} };
+import { bootstrapAuth, resumeAuth } from './utils/auth';
+
+export default {
+  onLaunch() { bootstrapAuth(); },
+  onShow() { resumeAuth(); }
+};
 </script>
 
 <style>

@@ -2,42 +2,48 @@ package com.dental.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
-import javax.crypto.SecretKey;
-
+/** 仅签发和解析短期访问令牌，撤销状态始终以数据库为准。 */
 @Service
 public class JwtService {
-    private final SecretKey key;
+    private static final String ISSUER = "dental-appointment";
+    private static final int MINIMUM_SECRET_BYTES = 32;
 
-    public JwtService(@Value("${app.jwt-secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+    private final SecretKey signingKey;
+
+    public JwtService(@Value("${app.jwt.secret}") String secret) {
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < MINIMUM_SECRET_BYTES) {
+            throw new IllegalArgumentException("JWT_SECRET 必须至少为32字节");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String issue(long userId, String tokenId, Instant expiry) {
+    public String issue(Long userId, String tokenId, Instant expiresAt) {
         return Jwts.builder()
-                .subject(Long.toString(userId))
+                .subject(String.valueOf(userId))
                 .id(tokenId)
-                .issuer("dental-appointment")
+                .issuer(ISSUER)
                 .issuedAt(new Date())
-                .expiration(Date.from(expiry))
-                .signWith(key)
+                .expiration(Date.from(expiresAt))
+                .signWith(signingKey)
                 .compact();
     }
 
-    public Claims parse(String token) {
+    public Claims parse(String compactToken) {
         return Jwts.parser()
-                .verifyWith(key)
-                .requireIssuer("dental-appointment")
+                .verifyWith(signingKey)
+                .requireIssuer(ISSUER)
                 .build()
-                .parseSignedClaims(token)
+                .parseSignedClaims(compactToken)
                 .getPayload();
     }
 }

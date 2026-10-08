@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    password: ''
+  data:
+    redis:
+      password: ''
+
+app:
+  wechat:
+    app-secret: ''
+  oss:
+    access-key-id: ''
+    access-key-secret: ''
+  jwt:
+    secret: ''
+  demo-login:
+    enabled: false

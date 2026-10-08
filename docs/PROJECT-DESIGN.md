@@ -193,7 +193,8 @@
 | 字段 | 类型 | 约束/说明 |
 |---|---|---|
 | `id` | BIGINT UNSIGNED | PK |
-| `user_id` | BIGINT UNSIGNED | NOT NULL，关联账号；本期每账号一个默认就诊人 |
+| `user_id` | BIGINT UNSIGNED | NOT NULL，关联账号；允许多个就诊人 |
+| `is_default` | TINYINT | NOT NULL DEFAULT 0，每个账号最多一位有效默认就诊人 |
 | `real_name` | VARCHAR(80) | NOT NULL |
 | `phone` | VARCHAR(20) | NOT NULL |
 | `gender` | TINYINT | NULL；0未知、1男、2女 |
@@ -202,7 +203,7 @@
 | `deleted` | TINYINT | NOT NULL DEFAULT 0 |
 | `created_at` / `updated_at` | DATETIME(3) | NOT NULL |
 
-索引：唯一 `uk_patient_user(user_id)`。资料逻辑删除后恢复原行，不为同一账号新增第二条默认资料。第一版不采集身份证号。若后续实现“多个就诊人”，移除 `user_id` 唯一约束并添加 `is_default`。
+V4 迁移移除 `uk_patient_user(user_id)`，增加 `idx_patient_user(user_id,deleted,id)` 与生成列 `active_default_user_id` 的唯一索引。一个账号可维护多位就诊人，删除仅标记 `deleted=1`；默认就诊人最多一位。第一版不采集身份证号。
 
 #### `department` — 科室
 
@@ -415,6 +416,10 @@ dental-appointment/
 | `GET` | `/api/v1/notices` | 公开 | 当前有效公告 |
 | `GET` | `/api/v1/me` | PATIENT/DOCTOR/ADMIN | 当前账号资料 |
 | `PUT` | `/api/v1/me/patient-profile` | PATIENT | 更新本人默认就诊人资料 |
+| `PUT` | `/api/v1/me/account-profile` | PATIENT | 更新本人账号昵称 |
+| `GET/POST` | `/api/v1/me/patient-profiles` | PATIENT | 列出或新增本人账号的就诊人 |
+| `PUT/DELETE` | `/api/v1/me/patient-profiles/{id}` | PATIENT | 更新或逻辑删除指定就诊人 |
+| `PUT` | `/api/v1/me/patient-profiles/{id}/default` | PATIENT | 设置默认就诊人 |
 | `POST` | `/api/v1/appointments` | PATIENT | 创建预约；返回预约编号和状态 |
 | `GET` | `/api/v1/appointments/me` | PATIENT | 查询本人预约，支持状态/日期分页 |
 | `GET` | `/api/v1/appointments/{id}` | 预约本人或有权限员工 | 预约详情 |
@@ -731,5 +736,5 @@ JWT_SECRET=至少32字节随机值
 - 取消截止时间（默认：开始前 120 分钟）。
 - 号源按固定时段还是诊疗项目时长生成（默认：管理员直接创建时段）。
 - 患者登录采用演示账号还是接入微信授权（默认：先实现可演示登录，微信授权作为集成阶段）。
-- 一账号是否可维护多个就诊人（默认：一账号一个默认就诊人）。
+- 一个账号可维护多位就诊人，预约时选择实际就诊人；账号资料与真实就诊信息分别管理。
 - Redis 是否进入 Docker Compose（默认：进入开发环境 Compose，生产单独部署）。

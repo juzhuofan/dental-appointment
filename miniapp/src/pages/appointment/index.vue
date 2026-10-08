@@ -5,7 +5,7 @@
 import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { api, notifyError } from '../../utils/request';
-import { ensureLogin } from '../../utils/session';
+import { ensureLogin } from '../../utils/auth';
 import { dateText, timeText, timeRange, statusLabel, canCancelStatus } from '../../utils/format';
 const appointment = ref(null); const clinic = ref({}); const loading = ref(true); const cancelling = ref(false); const error = ref(''); let id = ''; let initialized = false;
 const statusDescriptions = { PENDING: '预约已提交，等待诊所确认', CONFIRMED: '预约已确认，请按时到诊', COMPLETED: '本次接诊已完成，感谢你的信任', CANCELLED: '本次预约已取消，号源已释放', NO_SHOW: '诊所已登记本次未到诊' };
@@ -21,7 +21,7 @@ function cancel() {
   if (cancelling.value) return;
   uni.showModal({ title: '确定取消这次预约？', content: '取消后会释放号源，如需就诊请重新预约。', editable: true, placeholderText: '取消原因（选填）', confirmText: '确定取消', cancelText: '保留预约', success: async result => { if (!result.confirm) return; cancelling.value = true; try { await api.cancelAppointment(id, result.content?.trim() || '患者主动取消'); uni.showToast({ title: '预约已取消', icon: 'success' }); await load(); } catch (e) { notifyError(e); } finally { cancelling.value = false; } } });
 }
-onLoad(options => { id = options.id; if (ensureLogin(`/pages/appointment/index?id=${id}`)) { load(); initialized = true; } else loading.value = false; });
+onLoad(async options => { id = options.id; if (await ensureLogin(`/pages/appointment/index?id=${id}`)) { load(); initialized = true; } else loading.value = false; });
 onShow(() => { if (initialized && appointment.value) load(); });
 </script>
 <style scoped>

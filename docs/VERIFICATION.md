@@ -1,6 +1,6 @@
-# 初版验证记录
+# 后端重建验证记录
 
-验证日期：2026-10-05；环境：Windows 11，本机 MySQL、Redis，Microsoft Edge 浏览器。
+验证日期：2026-10-06；环境：Windows 11、本机 MySQL 与 Redis、Microsoft Edge。后端连接独立测试库 `dental_appointment_codex_test`，未使用人工演示数据库。
 
 ## 实际环境
 
@@ -10,25 +10,25 @@
 | Node.js | 24.18.0 |
 | MySQL 服务 | 8.0.45 |
 | Redis 服务 | 3.2.100，认证与 PING 成功，应用使用 RESP2 |
-| 本机 Maven | 3.9.9；备用官方 Wrapper 固定 3.9.11 |
+| 本机 Maven | 3.10.0（`D:\itApps\maven\apache-maven-3.10.0`）；Wrapper 固定 3.10.0 |
 | Spring Boot | 3.5.16 |
+| MyBatis-Plus | 3.5.17 |
 | 管理端 | Vue 3.5.43、TypeScript 5.9.3、Vite 8.3.2 |
 | 小程序构建链 | uni-app 3.0.0-5020620260917001、Vue 3.4.21、Vite 5.2.8 |
 
-客户端各自使用已提交的锁文件，保留 uni-app 官方模板的兼容版本组合。
+客户端各自使用锁文件，保留 uni-app 官方模板的兼容版本组合。
 
 ## 已执行的检查
 
 | 检查 | 结果 |
 | --- | --- |
-| scripts/Build-Local.ps1 -SkipInstall | 通过：后端 verify、管理端类型检查及构建、微信与 H5 构建 |
-| JUnit | 6 项通过，0 失败 |
+| Maven `verify` | 111 个 Java 源文件编译、测试及 JAR 打包成功 |
+| JUnit | 3 项通过，0 失败 |
 | Node 接口集成验证 | 11 项结果通过（10 个子场景及主场景），0 失败 |
 | Edge 浏览器端到端验证 | 6 项通过，0 失败 |
-| scripts/Start-Local.ps1、Stop-Local.ps1 | Windows PowerShell 5.1 实际启动、停止与重新启动成功 |
-| scripts/Verify-Local.ps1 | 完整执行接口及浏览器验证通过 |
-| 最终 /actuator/health | UP；最终进程日志无 ERROR |
-| 可提交文件凭据扫描 | 通过；连接密码、签名密钥及演示密码配置均在 Git 忽略文件中 |
+| 后端健康接口 | `/actuator/health` 返回 UP |
+| 独立测试库检查 | 13 张业务表、公共字段齐全，号源数量与活动预约一致 |
+| Git 工作区检查 | 未执行 commit 或 push；本地凭据文件处于 Git 忽略目录 |
 
 ### 接口覆盖
 
@@ -59,8 +59,8 @@
 - 排班 booked_slots 等于未删除 PENDING/CONFIRMED 预约数，一致性错误 **0**；不存在负数或超额。
 - 停止或删除的排班不存在活动预约。
 - 验证数据经应用 API 逻辑删除；查询确认删除记录仍物理保留。
-- 验证结束后保留 3 名虚构种子医生，测试医生和测试科室无活动残留。
-- 详细字段见 [DATABASE-SCHEMA.md](DATABASE-SCHEMA.md)，建表及约束见 backend/src/main/resources/db/migration。
+- 本地环境初始化 3 个虚构科室、3 名虚构医生和 9 个未来可预约排班；测试库内仍保存应用逻辑删除的验证记录。
+- 详细字段见 [DATABASE-SCHEMA.md](DATABASE-SCHEMA.md)，建表及约束见 [数据库迁移目录](../backend/src/main/resources/db/migration)。
 
 ## 运行与产物
 
@@ -68,14 +68,14 @@
 - 患者 H5 预览：http://127.0.0.1:5174/
 - 后端：http://127.0.0.1:8080/api/v1
 - 后端产物：backend/target/dental-backend-0.1.0.jar
-- 微信产物：miniapp/dist/build/mp-weixin；微信开发者工具可以导入 miniapp 根目录的 project.config.json。
+- 微信开发者工具可导入 miniapp 根目录的 project.config.json；本轮验证使用患者 H5 预览。
 - 浏览器报告：.local/ui-report/index.html；验证截图：.local/screenshots。
 
 ## 本次验证范围
 
-微信目标已编译成功，患者交互流程通过同一 uni-app 源码的 H5 预览验证；微信开发者工具模拟器和真机尚未进行人工检查。初版按要求使用设备演示登录，真实微信授权、微信通知及支付未接入。
+患者交互流程通过同一 uni-app 源码的 H5 预览验证；微信开发者工具模拟器和真机尚未进行人工检查。初版按要求使用设备演示登录，真实微信授权、微信通知及支付未接入。
 
-服务在本机运行，Git 仓库已关联用户提供的 origin，尚未推送到 GitHub。连接配置、日志、缓存和验证产物均保留在本机忽略目录中。
+验证使用独立数据库；连接配置、日志、缓存和验证产物均保留在本机忽略目录中。本轮代码留在工作区供人工审查，未提交或推送 Git。
 
 ## 复验
 
@@ -86,3 +86,47 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Verify-Local.ps1
 ```
 
 复验需要后端、管理端及患者 H5 均已启动。更新代码并重新构建前，先停止项目服务，避免 Windows 锁定后端 JAR 文件。
+
+## 2026-10-07 OSS 上传模块验证
+
+使用 JDK 17.0.14 与本机 Maven 3.10.0、阿里云 Maven 镜像和已有本地仓库执行 `verify`，116 个 Java 源文件编译与 JAR 打包成功。
+
+| 检查 | 结果 |
+| --- | --- |
+| JUnit 总计 | 28 项通过，0 失败、0 错误、0 跳过 |
+| 新增 OSS 用例 | 25 项：服务校验、字节/元数据、稳定 URL、流关闭、SDK 异常、配置/生命周期、HTTP 认证与 R 错误响应 |
+| 真实 SDK 环回测试 | 向本机 HTTP Server 上传，V4 签名、正文、禁止覆盖、响应解析和 Java 17 JAXB 兼容性通过 |
+| 真实 OSS 上传 | 通过封装服务上传 135 字节生成文本至北京 `dental-backend`，成功返回普通链接 |
+| 普通链接匿名读取 | HTTP 403；当前对象读权限不允许匿名访问，未调整 ACL |
+| 数据库与 Git | 本次上传验证未连接或写入业务数据库；未执行 commit 或 push |
+
+真实上传测试对象为 `dental/uploads/2026/10/07/97eeaa1fa95b4afa80a359f3f4a8ba71.txt`，仅含生成的验证文本，保留在 Bucket 内供核对。结果文件保存在本机忽略目录 `.local/oss-verification/`。完整接入与复用说明见 [OSS-UPLOAD.md](OSS-UPLOAD.md)。
+
+## 2026-10-07 微信登录与头像验证
+
+| 检查 | 结果 |
+| --- | --- |
+| Maven verify | 125 个 Java 源文件编译、109 项测试与 JAR 打包全部通过 |
+| 客户端登录状态测试 | 11 项平台模拟测试通过：code 调用契约、首次主动开户、会话校验与恢复、上传失败重试、平台隐私授权回调及 H5 边界 |
+| 小程序/H5 构建 | 两项成功，Node 24.18.0 |
+| 独立数据库与 OSS 贯通 | 19 项通过，真实 MySQL/Flyway/JWT/HTTP/OSS，仅微信身份响应使用测试模拟 |
+| 私有头像读写 | 实际上传生成的 1×1 PNG，静态 URL 入库，签名 GET HTTP 200 且正文一致 |
+| 微信官方配置检查 | 现有 AppID/AppSecret 通过稳定访问令牌接口验证，凭证和访问令牌未输出或保存 |
+| 数据与 Git | 测试账号及关联记录逻辑删除，审计记录保留；未使用业务库，未修改 ACL，未 commit/push |
+
+独立贯通结果在 `.local/wechat-verification/result.json`，测试对象为 `dental/uploads/2026/10/07/0707f9609855468093941003c39f8ce1.png`。当前个人主体不获取微信手机号，就诊联系方式由用户填写。真实用户授权、微信原生头像选择及真机复进首页尚需按 [WECHAT-LOGIN.md](WECHAT-LOGIN.md) 第 6 节人工验收，本轮不把模拟微信响应记作真实用户登录成功。
+
+## 2026-10-08 登录流程与真机连接修复
+
+- 真机请求此前使用 127.0.0.1，已改为当前电脑 WLAN 的 `http://10.212.182.144:8080/api/v1`；电脑通过回环和 WLAN 地址访问健康、科室及登录配置均 HTTP 200。用户在手机访问 `wechat-config` 已收到 OK，确认公开登录接口连通；未修改 Windows 防火墙或网络安全设置。
+- 实际 code2Session 返回 HTTP 200 / text/plain / JSON。原 JsonNode 媒体类型转换失败后误报 `WECHAT_API_UNAVAILABLE`；修复为字符串读取并解析。真实固定无效 code 现在正确返回 `WECHAT_CODE_INVALID` / 400，当前 AppID/AppSecret 验证成功。
+- 去除强制头像与启动时自动 wx.login：未登录弹窗，用户点击后调用微信认证；头像改为个人中心可选资料，上传失败不撤销登录。
+- Maven verify **115 项通过**，0 失败/错误/跳过，JAR 打包成功；客户端 **17 项通过**；微信小程序与 H5 构建成功。
+- 详细真机操作见 [REAL-DEVICE-DEBUG.md](REAL-DEVICE-DEBUG.md)，安全回归记录位于 `.local/wechat-network/result.json`。没有修改用户正在运行的 IDEA 后端进程，需重启加载新代码；未提交或推送 Git。
+
+## 2026-10-08 账号资料与多就诊人
+
+- 登录按钮增加“使用当前微信账号”的明确确认。微信平台不提供多账号选择列表；头像和昵称在登录后由用户主动选用微信建议值或自行设置。
+- “我的”页顶部显示 `sys_user.display_name`，账号昵称与头像独立于真实就诊人资料。就诊人管理支持新增、编辑、设置默认、逻辑删除；预约确认页选择实际就诊人，防重键按就诊人和排班生成。
+- Maven verify：**120 项通过**，0 失败/错误/跳过，JDK 17 编译并打包成功。微信小程序与 H5 构建成功；小程序登录状态与登录后资料选择 **18 项测试通过**。
+- Flyway V4 在独立 `dental_appointment_codex_test` 数据库成功迁移；事务内插入一个账号的两位就诊人，验证数量为 2、默认人数为 1，随后回滚。最新 JAR 针对 V4 测试库再次完成 Flyway 验证与 Spring Boot 启动，临时进程已停止。生产库仍在 V3，需重启 IDEA 中的后端实例使 Flyway 应用 V4。本轮没有改动生产库、没有提交或推送 Git。真实微信账号授权与微信建议昵称/头像仍需在真机手动检查。

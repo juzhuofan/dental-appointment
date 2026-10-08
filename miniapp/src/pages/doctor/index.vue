@@ -5,14 +5,14 @@
 import { ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { api } from '../../utils/request';
-import { ensureLogin } from '../../utils/session';
+import { ensureLogin } from '../../utils/auth';
 import { nextDates, timeRange } from '../../utils/format';
 import EmptyState from '../../components/EmptyState.vue';
 const doctor = ref(null); const schedules = ref([]); const loading = ref(true); const error = ref(''); const schedulesLoading = ref(false); const scheduleError = ref(''); const dates = ref(nextDates()); const selectedDate = ref(dates.value[0].key); let id = ''; let scheduleGeneration = 0; let initialized = false;
 async function load() { loading.value = true; error.value = ''; try { doctor.value = await api.doctor(id); await loadSchedules(); } catch (e) { error.value = e.message; } finally { loading.value = false; } }
 async function loadSchedules() { const current = ++scheduleGeneration; schedulesLoading.value = true; scheduleError.value = ''; try { const result = await api.schedules({ doctorId: id, dateFrom: selectedDate.value, dateTo: selectedDate.value }); if (current === scheduleGeneration) schedules.value = result.records; } catch (e) { if (current === scheduleGeneration) scheduleError.value = e.message; } finally { if (current === scheduleGeneration) schedulesLoading.value = false; } }
 function selectDate(date) { selectedDate.value = date; loadSchedules(); }
-function book(schedule) { const target = `/pages/confirm/index?scheduleId=${schedule.id}&doctorId=${id}`; if (ensureLogin(target)) uni.navigateTo({ url: target }); }
+async function book(schedule) { const target = `/pages/confirm/index?scheduleId=${schedule.id}&doctorId=${id}`; if (await ensureLogin(target)) uni.navigateTo({ url: target }); }
 onLoad(options => { id = options.id; load(); initialized = true; });
 onShow(() => { if (initialized && doctor.value) loadSchedules(); });
 </script>

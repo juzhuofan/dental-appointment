@@ -4,6 +4,7 @@
   "private": true,
   "description": "Local verification for the dental clinic appointment project",
   "scripts": {
+    "test:miniapp-auth": "node --test tests/unit/wechat-login.test.mjs",
     "test:api": "node --test tests/api.integration.test.mjs",
     "test:ui": "playwright test"
   },

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dental.appointment.mapper.AppointmentIdempotencyMapper">
+    <resultMap id="idempotencyMap" type="com.dental.appointment.entity.AppointmentIdempotencyEntity">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="request_key" property="requestKey"/>
+        <result column="request_hash" property="requestHash"/>
+        <result column="appointment_id" property="appointmentId"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="reserve">
+        INSERT INTO appointment_idempotency
+            (user_id, request_key, request_hash, appointment_id, deleted, created_at, updated_at)
+        VALUES (#{userId}, #{requestKey}, #{requestHash}, NULL, 0, #{now}, #{now})
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+
+    <select id="lock" resultMap="idempotencyMap">
+        SELECT * FROM appointment_idempotency
+        WHERE user_id = #{userId} AND request_key = #{requestKey} AND deleted = 0
+        FOR UPDATE
+    </select>
+
+    <update id="attachAppointment">
+        UPDATE appointment_idempotency
+        SET appointment_id = #{appointmentId}, updated_at = #{now}
+        WHERE id = #{id} AND deleted = 0 AND appointment_id IS NULL
+    </update>
+</mapper>
