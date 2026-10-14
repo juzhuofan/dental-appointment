@@ -6,7 +6,7 @@
     <view v-else-if="error" class="error-card">{{ error }}<button class="btn btn-outline btn-small" @click="load">重新加载</button></view>
     <template v-else>
       <view v-if="notices.length" class="notice-strip" @click="openNotice(notices[0])"><view class="notice-dot" /><text class="notice-label">公告</text><text class="notice-text">{{ notices[0].title }}</text><text class="link">›</text></view>
-      <view class="section"><view class="row between"><text class="section-title">选择科室</text><text class="link" @click="openDoctors()">全部医生 ›</text></view><view class="department-grid"><view v-for="(item, index) in departments" :key="item.id" class="department-item" @click="openDoctors(item.id)"><view :class="['department-icon', `tone-${index % 4}`]"><view class="tooth-top" /><view class="tooth-root" /></view><view class="department-name">{{ item.name }}</view></view></view><EmptyState v-if="!departments.length" title="科室尚未发布" description="诊所发布后即可选择医生" /></view>
+      <view class="section"><view class="row between"><text class="section-title">选择科室</text><text class="link" @click="openDoctors()">全部医生 ›</text></view><view class="department-grid"><view v-for="(item, index) in departments" :key="item.id" class="department-item" @click="openDoctors(item.id)"><view :class="['department-icon', `tone-${index % 4}`]"><image v-if="item.avatarDisplayUrl || item.avatarUrl" class="department-image" :src="item.avatarDisplayUrl || item.avatarUrl" mode="aspectFill" /><template v-else><view class="tooth-top" /><view class="tooth-root" /></template></view><view class="department-name">{{ item.name }}</view></view></view><EmptyState v-if="!departments.length" title="科室尚未发布" description="诊所发布后即可选择医生" /></view>
       <view class="section"><view class="row between"><text class="section-title">认识我们的医生</text><text class="link" @click="openDoctors()">查看全部 ›</text></view><DoctorCard v-for="doctor in doctors.slice(0, 3)" :key="doctor.id" :doctor="doctor" @select="openDoctor" /><EmptyState v-if="!doctors.length" title="医生资料准备中" /></view>
       <view class="section"><text class="section-title">诊所信息</text><view class="card top-space"><view class="clinic-name">{{ clinic.name || '微笑口腔诊所' }}</view><view class="info-row"><text class="info-label">营业时间</text><text class="info-value">{{ clinic.openingHours || '以诊所公告为准' }}</text></view><view class="info-row"><text class="info-label">诊所地址</text><text class="info-value">{{ clinic.address || '待补充' }}</text></view><view class="info-row" @click="callClinic"><text class="info-label">联系电话</text><text class="info-value link">{{ clinic.phone || '待补充' }}</text></view><view v-if="clinic.introduction" class="body top-space">{{ clinic.introduction }}</view></view></view>
       <view v-if="notices.length > 1" class="section"><text class="section-title">诊所公告</text><view v-for="notice in notices.slice(1, 4)" :key="notice.id" class="notice-row" @click="openNotice(notice)"><text>{{ notice.title }}</text><text class="muted">›</text></view></view>
@@ -22,7 +22,7 @@ import DoctorCard from '../../components/DoctorCard.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import LoginDialog from '../../components/LoginDialog.vue';
 import { api } from '../../utils/request';
-import { bootstrapAuth, offerAccountProfileSetup } from '../../utils/auth';
+import { bootstrapAuth } from '../../utils/auth';
 import { authState } from '../../utils/session';
 const clinic = ref({}); const departments = ref([]); const doctors = ref([]); const notices = ref([]); const loading = ref(true); const error = ref('');
 async function load() {
@@ -36,9 +36,8 @@ const openDoctors = id => uni.navigateTo({ url: `/pages/doctors/index${id ? `?de
 const openDoctor = doctor => uni.navigateTo({ url: `/pages/doctor/index?id=${doctor.id}` });
 const openNotice = notice => uni.navigateTo({ url: `/pages/notice/index?id=${notice.id}` });
 function callClinic() { if (clinic.value.phone) uni.makePhoneCall({ phoneNumber: clinic.value.phone }); }
-async function loggedIn(user) {
-  if (await offerAccountProfileSetup(user)) uni.switchTab({ url: '/pages/me/index' });
-  else uni.showToast({ title: '微信登录成功', icon: 'success' });
+function loggedIn() {
+  uni.showToast({ title: '微信登录成功', icon: 'success' });
 }
 onShow(() => { load(); bootstrapAuth(); }); onPullDownRefresh(load);
 </script>
@@ -63,6 +62,7 @@ onShow(() => { load(); bootstrapAuth(); }); onPullDownRefresh(load);
 .department-grid { display: flex; flex-wrap: wrap; margin-top: 28rpx; row-gap: 26rpx; }
 .department-item { width: 25%; text-align: center; padding: 0 7rpx; }
 .department-icon { width: 86rpx; height: 86rpx; position: relative; margin: 0 auto; border-radius: 24rpx; background: #e4f1e7; color: #548971; }
+.department-image { width: 100%; height: 100%; border-radius: inherit; }
 .tone-1 { background: #f4eedf; color: #a89264; }.tone-2 { background: #e5edf5; color: #6e89a1; }.tone-3 { background: #f2e7e4; color: #b38573; }
 .tooth-top { width: 38rpx; height: 31rpx; border: 3rpx solid currentColor; border-bottom: 0; border-radius: 15rpx 15rpx 7rpx 7rpx; position: absolute; left: 24rpx; top: 22rpx; }
 .tooth-root { width: 31rpx; height: 24rpx; border: 3rpx solid currentColor; border-top: 0; border-radius: 0 0 12rpx 12rpx; position: absolute; left: 27rpx; top: 46rpx; }

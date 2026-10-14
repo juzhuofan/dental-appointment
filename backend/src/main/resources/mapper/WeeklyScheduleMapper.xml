@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dental.job.mapper.WeeklyScheduleMapper">
+    <select id="findActiveDoctorIds" resultType="java.lang.Long">
+        SELECT d.id FROM doctor d
+        JOIN department dep ON dep.id=d.department_id AND dep.deleted=0 AND dep.status=1
+        WHERE d.deleted=0 AND d.status=1 ORDER BY d.department_id,d.id
+    </select>
+    <sql id="sourceEligibility">
+        s.deleted=0 AND (s.status IN ('PUBLISHED','CLOSED') OR
+            (s.status='CANCELLED' AND EXISTS (
+                SELECT 1 FROM doctor_leave_schedule ls WHERE ls.schedule_id=s.id)))
+    </sql>
+    <select id="findSourceSchedules" resultMap="com.dental.schedule.mapper.ScheduleMapper.scheduleMap">
+        SELECT s.* FROM doctor_schedule s
+        WHERE s.doctor_id=#{doctorId} AND <include refid="sourceEligibility"/>
+          AND s.start_time &gt;= #{from} AND s.start_time &lt; #{to}
+        ORDER BY s.start_time,s.id FOR UPDATE OF s
+    </select>
+    <select id="findLeaveSeeds" resultMap="com.dental.schedule.mapper.ScheduleMapper.scheduleMap">
+        SELECT NULL AS id,g.doctor_id,g.start_time,g.end_time,g.total_slots,g.cancel_before_minutes
+        FROM schedule_generation_item g
+        WHERE g.doctor_id=#{doctorId} AND g.outcome='LEAVE'
+          AND g.start_time &gt;= #{from} AND g.start_time &lt; #{to}
+          AND NOT EXISTS (SELECT 1 FROM doctor_schedule s WHERE s.doctor_id=g.doctor_id
+              AND s.deleted=0 AND s.start_time &lt; g.end_time AND s.end_time &gt; g.start_time)
+        ORDER BY g.start_time,g.id
+    </select>
+    <select id="findMostRecentSourceStart" resultType="java.time.LocalDateTime">
+        SELECT MAX(candidate.start_time) FROM (
+            SELECT s.start_time FROM doctor_schedule s
+            WHERE s.doctor_id=#{doctorId} AND <include refid="sourceEligibility"/>
+              AND s.start_time &lt; #{before}
+            UNION ALL
+            SELECT g.start_time FROM schedule_generation_item g
+            WHERE g.doctor_id=#{doctorId} AND g.outcome='LEAVE' AND g.start_time &lt; #{before}
+              AND NOT EXISTS (SELECT 1 FROM doctor_schedule existing WHERE existing.doctor_id=g.doctor_id
+                  AND existing.deleted=0 AND existing.start_time &lt; g.end_time
+                  AND existing.end_time &gt; g.start_time)
+        ) candidate
+    </select>
+    <select id="countGenerated" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM schedule_generation_item
+        WHERE doctor_id=#{doctorId} AND start_time=#{start} AND end_time=#{end}
+    </select>
+    <insert id="insertItem">
+        INSERT INTO schedule_generation_item
+        (target_monday,doctor_id,source_monday,source_schedule_id,start_time,end_time,
+         total_slots,cancel_before_minutes,outcome,schedule_id,created_at)
+        VALUES (#{item.targetMonday},#{item.doctorId},#{item.sourceMonday},#{item.sourceScheduleId},
+         #{item.startTime},#{item.endTime},#{item.totalSlots},#{item.cancelBeforeMinutes},
+         #{item.outcome},#{item.scheduleId},#{item.createdAt})
+    </insert>
+</mapper>

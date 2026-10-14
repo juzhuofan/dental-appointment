@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 import com.dental.audit.service.OperationLogService;
 import com.dental.auth.mapper.AuthTokenMapper;
 import com.dental.common.BusinessException;
-import com.dental.config.WechatProperties;
 import com.dental.file.service.FileUploadService;
 import com.dental.user.entity.PatientProfile;
 import com.dental.user.entity.SysRole;
@@ -61,19 +60,16 @@ class UserWechatProfileTest {
     @Mock
     private FileUploadService uploadService;
 
-    private WechatProperties properties;
     private UserService service;
 
     @BeforeEach
     void setUp() {
-        properties = new WechatProperties();
-        properties.setPhoneNumberEnabled(false);
         service = new UserService(userMapper, roleMapper, userRoleMapper, profileMapper,
-                tokenMapper, encoder, audit, List.of(), uploadService, properties);
+                tokenMapper, encoder, audit, List.of(), uploadService);
     }
 
     @Test
-    void personalModeCompletesProfileWithoutPhoneAndSeparatesStoredAndDisplayUrls() {
+    void wechatAccountCompletesProfileWithoutPhoneAndSeparatesStoredAndDisplayUrls() {
         SysUser user = wechatUser();
         user.setAvatarUrl(AVATAR_URL);
         when(userRoleMapper.selectList(any())).thenReturn(List.of());
@@ -92,42 +88,13 @@ class UserWechatProfileTest {
     }
 
     @Test
-    void certifiedPhoneModeRequiresPhoneEvenWhenAvatarExists() {
-        properties.setPhoneNumberEnabled(true);
-        SysUser user = wechatUser();
-        user.setAvatarUrl(AVATAR_URL);
-        when(userRoleMapper.selectList(any())).thenReturn(List.of());
-
-        assertFalse(service.toUserVO(user).profileCompleted());
-        user.setPhone("13900000001");
-        assertTrue(service.toUserVO(user).profileCompleted());
-    }
-
-    @Test
-    void firstWechatLoginWithoutAvatarIsAuthenticatedInPersonalMode() {
+    void firstWechatLoginWithoutAvatarIsAuthenticated() {
         when(userRoleMapper.selectList(any())).thenReturn(List.of());
 
         UserVO result = service.toUserVO(wechatUser());
 
         assertTrue(result.wechatBound());
         assertTrue(result.profileCompleted());
-        assertNull(result.avatarUrl());
-        assertNull(result.avatarDisplayUrl());
-        verifyNoInteractions(uploadService);
-    }
-
-    @Test
-    void certifiedPhoneModeCompletesProfileWithTrustedPhoneAndNoAvatar() {
-        properties.setPhoneNumberEnabled(true);
-        SysUser user = wechatUser();
-        user.setPhone("13900000001");
-        when(userRoleMapper.selectList(any())).thenReturn(List.of());
-
-        UserVO result = service.toUserVO(user);
-
-        assertTrue(result.wechatBound());
-        assertTrue(result.profileCompleted());
-        assertEquals("13900000001", result.phone());
         assertNull(result.avatarUrl());
         assertNull(result.avatarDisplayUrl());
         verifyNoInteractions(uploadService);

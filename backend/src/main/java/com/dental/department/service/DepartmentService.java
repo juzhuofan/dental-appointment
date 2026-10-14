@@ -13,6 +13,7 @@ import com.dental.department.entity.DepartmentEntity;
 import com.dental.department.mapper.DepartmentMapper;
 import com.dental.department.vo.DepartmentVO;
 import com.dental.doctor.service.DoctorService;
+import com.dental.file.service.FileUploadService;
 import com.dental.schedule.service.ScheduleService;
 import java.util.List;
 import org.springframework.dao.DuplicateKeyException;
@@ -27,13 +28,16 @@ public class DepartmentService {
     private final DoctorService doctorService;
     private final ScheduleService scheduleService;
     private final OperationLogService operationLogService;
+    private final FileUploadService fileUploadService;
 
     public DepartmentService(DepartmentMapper departmentMapper, DoctorService doctorService,
-                             ScheduleService scheduleService, OperationLogService operationLogService) {
+                             ScheduleService scheduleService, OperationLogService operationLogService,
+                             FileUploadService fileUploadService) {
         this.departmentMapper = departmentMapper;
         this.doctorService = doctorService;
         this.scheduleService = scheduleService;
         this.operationLogService = operationLogService;
+        this.fileUploadService = fileUploadService;
     }
 
     public PageResult<DepartmentVO> list(DepartmentQueryDTO query, boolean publicOnly) {
@@ -130,12 +134,14 @@ public class DepartmentService {
 
     private void copy(DepartmentSaveDTO input, DepartmentEntity department) {
         department.setDescription(input.description());
+        department.setAvatarUrl(input.avatarUrl());
         department.setSortOrder(input.sortOrder());
         department.setStatus(input.status());
     }
 
     private DepartmentVO toVO(DepartmentEntity department) {
         return new DepartmentVO(department.getId(), department.getName(), department.getDescription(),
+                department.getAvatarUrl(), fileUploadService.displayUrl(department.getAvatarUrl()),
                 department.getSortOrder(), department.getStatus());
     }
 

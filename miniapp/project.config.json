@@ -2,7 +2,7 @@
   "description": "口腔诊所预约（先运行 npm run build:mp-weixin）",
   "miniprogramRoot": "dist/build/mp-weixin/",
   "compileType": "miniprogram",
-  "appid": "wxd024dd8ce6863e5a",
+  "appid": "wxebd957eb6746e73e",
   "projectname": "dental-appointment",
   "setting": {
     "urlCheck": false,

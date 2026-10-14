@@ -7,6 +7,7 @@ import com.dental.common.BusinessException;
 import com.dental.common.PageResult;
 import com.dental.common.TimeUtil;
 import com.dental.department.service.ClinicService;
+import com.dental.leave.mapper.DoctorLeaveMapper;
 import com.dental.schedule.dto.ScheduleFilterDTO;
 import com.dental.schedule.dto.ScheduleSaveDTO;
 import com.dental.schedule.entity.ScheduleEntity;
@@ -37,13 +38,16 @@ public class ScheduleService {
     private final AppointmentService appointmentService;
     private final OperationLogService operationLogService;
     private final ClinicService clinicService;
+    private final DoctorLeaveMapper doctorLeaveMapper;
 
     public ScheduleService(ScheduleMapper scheduleMapper, AppointmentService appointmentService,
-                           OperationLogService operationLogService, ClinicService clinicService) {
+                           OperationLogService operationLogService, ClinicService clinicService,
+                           DoctorLeaveMapper doctorLeaveMapper) {
         this.scheduleMapper = scheduleMapper;
         this.appointmentService = appointmentService;
         this.operationLogService = operationLogService;
         this.clinicService = clinicService;
+        this.doctorLeaveMapper = doctorLeaveMapper;
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +84,7 @@ public class ScheduleService {
         requireFuturePublication(status, start, cancelMinutes);
 
         DoctorAssignmentVO doctor = lockActiveDoctor(input.getDoctorId());
+        ensureNotOnLeave(doctor.getDoctorId(), start, end);
         ensureNoOverlap(doctor.getDoctorId(), start, end, null);
 
         LocalDateTime now = TimeUtil.nowUtc();
@@ -118,6 +123,7 @@ public class ScheduleService {
         int cancelMinutes = cancelMinutes(input.getCancelBeforeMinutes());
 
         DoctorAssignmentVO doctor = lockActiveDoctor(input.getDoctorId());
+        ensureNotOnLeave(doctor.getDoctorId(), start, end);
         ScheduleEntity locked = scheduleMapper.lockSchedule(id);
         if (locked == null) {
             throw BusinessException.missing("排班不存在");
@@ -151,6 +157,12 @@ public class ScheduleService {
     public ScheduleVO changeStatus(long id, String newStatus) {
         requireAdmin();
         ScheduleStatus target = ScheduleStatus.parse(newStatus);
+        DoctorAssignmentVO publicationDoctor = null;
+        if (target == ScheduleStatus.PUBLISHED) {
+            ScheduleEntity initial = scheduleMapper.selectById(id);
+            if (initial == null) throw BusinessException.missing("排班不存在");
+            publicationDoctor = lockActiveDoctor(initial.getDoctorId());
+        }
         ScheduleEntity locked = scheduleMapper.lockSchedule(id);
         if (locked == null) {
             throw BusinessException.missing("排班不存在");
@@ -163,15 +175,15 @@ public class ScheduleService {
             throw BusinessException.conflict("排班状态不允许此变更");
         }
         if (target == ScheduleStatus.PUBLISHED) {
-            DoctorAssignmentVO doctor = scheduleMapper.findDoctor(locked.getDoctorId());
-            if (doctor == null || doctor.getDoctorStatus() != 1
-                    || !Objects.equals(scheduleMapper.findDepartmentStatus(doctor.getDepartmentId()), 1)) {
-                throw BusinessException.conflict("所属医生或科室已停用");
+            if (!Objects.equals(locked.getDoctorId(), publicationDoctor.getDoctorId())) {
+                throw BusinessException.conflict("排班医生已变化，请刷新后重试");
             }
+            ensureNotOnLeave(locked.getDoctorId(), locked.getStartTime(), locked.getEndTime());
             requireFuturePublication(target, locked.getStartTime(), locked.getCancelBeforeMinutes());
         }
         scheduleMapper.updateStatus(id, target.name(), TimeUtil.nowUtc());
-        if (target == ScheduleStatus.CLOSED || target == ScheduleStatus.CANCELLED) {
+        // 关闭仅暂停新预约；停诊才取消已占用预约并释放号源。
+        if (target == ScheduleStatus.CANCELLED) {
             appointmentService.cancelActiveBySchedule(id);
         }
         operationLogService.record("SCHEDULE_STATUS", "SCHEDULE", String.valueOf(id), "更新排班状态为" + target.name());
@@ -288,6 +300,12 @@ public class ScheduleService {
     private void ensureNoOverlap(long doctorId, LocalDateTime start, LocalDateTime end, Long excludeId) {
         if (scheduleMapper.countOverlaps(doctorId, start, end, excludeId) > 0) {
             throw BusinessException.conflict("医生在该时段已有排班");
+        }
+    }
+
+    private void ensureNotOnLeave(long doctorId, LocalDateTime start, LocalDateTime end) {
+        if (doctorLeaveMapper.countApprovedOverlaps(doctorId, start, end) > 0) {
+            throw BusinessException.conflict("该医生在此时段已有批准的请假，请调整排班时间");
         }
     }
 

@@ -8,7 +8,6 @@ import com.dental.auth.entity.AuthToken;
 import com.dental.auth.mapper.AuthTokenMapper;
 import com.dental.common.BusinessException;
 import com.dental.common.PageResult;
-import com.dental.config.WechatProperties;
 import com.dental.file.service.FileUploadService;
 import com.dental.security.CurrentUser;
 import com.dental.user.dto.PatientProfileSaveDTO;
@@ -67,7 +66,6 @@ public class UserService {
     private final OperationLogService audit;
     private final List<UserDeactivationHandler> deactivationHandlers;
     private final FileUploadService fileUploadService;
-    private final WechatProperties wechatProperties;
 
     public UserService(
             SysUserMapper userMapper,
@@ -78,8 +76,7 @@ public class UserService {
             PasswordEncoder passwordEncoder,
             OperationLogService audit,
             List<UserDeactivationHandler> deactivationHandlers,
-            FileUploadService fileUploadService,
-            WechatProperties wechatProperties) {
+            FileUploadService fileUploadService) {
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
@@ -89,7 +86,6 @@ public class UserService {
         this.audit = audit;
         this.deactivationHandlers = deactivationHandlers;
         this.fileUploadService = fileUploadService;
-        this.wechatProperties = wechatProperties;
     }
 
     public SysUser getUser(Long userId) {
@@ -156,8 +152,7 @@ public class UserService {
     public UserVO toUserVO(SysUser user) {
         boolean wechatBound = hasText(user.getWechatOpenid());
         boolean hasAvatar = hasText(user.getAvatarUrl());
-        boolean profileCompleted = wechatBound
-                && (!wechatProperties.isPhoneNumberEnabled() || hasText(user.getPhone()));
+        boolean profileCompleted = wechatBound;
         return new UserVO(
                 user.getId(), user.getUsername(), user.getDisplayName(),
                 rolesOf(user.getId()), userMapper.findActiveDoctorId(user.getId()),
@@ -416,6 +411,11 @@ public class UserService {
             throw BusinessException.conflict("USERNAME_EXISTS", "登录账号已存在");
         }
         List<String> oldRoles = existing == null ? List.of() : rolesOf(userId);
+        boolean credentialsOrAccessChanged = existing != null
+                && (!Objects.equals(existing.getUsername(), username)
+                || !Objects.equals(existing.getStatus(), request.status())
+                || !oldRoles.equals(List.of(request.role()))
+                || hasText(request.password()));
         if (existing != null) {
             if (existing.getDemoDeviceHash() != null
                     && (!ROLE_PATIENT.equals(request.role())
@@ -439,6 +439,9 @@ public class UserService {
         SysUser user = existing == null ? new SysUser() : existing;
         user.setUsername(username);
         user.setDisplayName(request.displayName().trim());
+        if (!ROLE_PATIENT.equals(request.role())) {
+            user.setAvatarUrl(request.avatarUrl());
+        }
         user.setStatus(request.status());
         user.setUpdatedAt(now);
         if (existing == null) {
@@ -453,7 +456,9 @@ public class UserService {
                 userMapper.insert(user);
             } else {
                 userMapper.updateById(user);
-                revokeUserTokens(user.getId());
+                if (credentialsOrAccessChanged) {
+                    revokeUserTokens(user.getId());
+                }
             }
         } catch (DuplicateKeyException exception) {
             throw BusinessException.conflict("USERNAME_EXISTS", "登录账号已存在");
@@ -728,6 +733,7 @@ public class UserService {
 
     private AdminUserVO toAdminUserVO(SysUser user, List<String> roles) {
         return new AdminUserVO(user.getId(), user.getUsername(), user.getDisplayName(),
+                user.getAvatarUrl(), fileUploadService.displayUrl(user.getAvatarUrl()),
                 roles.isEmpty() ? null : roles.get(0), List.copyOf(roles), user.getStatus(),
                 toDisplayTime(user.getCreatedAt()), toDisplayTime(user.getUpdatedAt()));
     }

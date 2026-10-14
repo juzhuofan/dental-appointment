@@ -4,7 +4,7 @@
 <script setup>
 import { onLoad } from '@dcloudio/uni-app';
 import LoginDialog from '../../components/LoginDialog.vue';
-import { bootstrapAuth, offerAccountProfileSetup } from '../../utils/auth';
+import { bootstrapAuth } from '../../utils/auth';
 import { hasSession, navigateAfterLogin } from '../../utils/session';
 let next = '/pages/me/index';
 onLoad(async options => {
@@ -14,10 +14,7 @@ onLoad(async options => {
   await bootstrapAuth();
   if (hasSession()) navigateAfterLogin(next);
 });
-const success = async user => {
-  if (await offerAccountProfileSetup(user)) uni.switchTab({ url: '/pages/me/index' });
-  else navigateAfterLogin(next);
-};
+const success = () => navigateAfterLogin(next);
 const home = () => uni.switchTab({ url: '/pages/home/index' });
 </script>
 <style scoped>

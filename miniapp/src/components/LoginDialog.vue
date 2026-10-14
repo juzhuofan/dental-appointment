@@ -20,19 +20,14 @@
           <!-- #endif -->
         </view>
         <template v-else-if="!privacyError">
-          <view class="login-hint">{{ authState.config.phoneNumberEnabled ? '使用当前微信身份登录，并由微信确认你授权的手机号。' : '使用当前微信账号登录，联系电话可在就诊资料中填写。' }}</view>
+          <view class="login-hint">使用当前微信账号登录，联系电话可在就诊资料中填写。</view>
           <!-- #ifdef MP-WEIXIN -->
-          <button v-if="authState.config.phoneNumberEnabled" class="btn btn-primary login-submit"
-            open-type="getPhoneNumber" :loading="authState.busy" :disabled="!canLogin" @getphonenumber="phoneLogin">
-            {{ authState.busy ? '正在登录…' : '微信一键登录' }}
-          </button>
-          <button v-else class="btn btn-primary login-submit" :loading="authState.busy" :disabled="!canLogin" @click="login()">
+          <button class="btn btn-primary login-submit" :loading="authState.busy" :disabled="!canLogin" @click="login()">
             {{ authState.busy ? '正在登录…' : '微信一键登录' }}
           </button>
           <!-- #endif -->
         </template>
       </template>
-      <button class="btn btn-outline phone-login" disabled>手机号登录（暂未开放）</button>
       <view class="browse-link" @click="close">暂不登录，先浏览诊所 ›</view>
     </view>
   </view>
@@ -41,43 +36,32 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { authState, getUser } from '../utils/session';
-import { bootstrapAuth, dismissLoginDialog, loginWithWechat, loginWithWechatPhoneAuthorization, refreshPrivacyRequirement } from '../utils/auth';
+import { bootstrapAuth, dismissLoginDialog, loginWithWechat, refreshPrivacyRequirement } from '../utils/auth';
 import { completePrivacyAuthorization, isWechatMiniProgram, openPrivacyContract } from '../utils/wechat';
 
 const props = defineProps({ visible: { type: Boolean, default: true }, modal: { type: Boolean, default: true } });
 const emit = defineEmits(['close', 'success']);
 const errorMessage = ref('');
 const privacyError = ref(false);
-const privacyChecking = ref(true);
+const privacyChecking = ref(false);
 const wechatSupported = isWechatMiniProgram();
 const canLogin = computed(() => authState.ready && !authState.busy && !privacyChecking.value
   && !privacyError.value && !authState.privacyRequired);
 
-async function loadPrivacy() {
-  if (!wechatSupported || !authState.config.phoneNumberEnabled) {
-    privacyChecking.value = false;
-    privacyError.value = false;
-    return;
-  }
-  privacyChecking.value = true;
-  privacyError.value = false;
-  try { await refreshPrivacyRequirement(); }
-  catch (error) { errorMessage.value = error.message; privacyError.value = true; }
-  finally { privacyChecking.value = false; }
-}
-
 watch(() => props.visible, async visible => {
   if (!visible) return;
   await bootstrapAuth();
-  await loadPrivacy();
 }, { immediate: true });
 
 async function retry() {
   if (authState.busy) return;
   errorMessage.value = '';
   await bootstrapAuth({ retry: true });
-  await loadPrivacy();
-  if (authState.status === 'authenticated') emit('success', getUser());
+  if (privacyError.value || authState.privacyRequired) {
+    try { await refreshPrivacyRequirement(); privacyError.value = false; }
+    catch (error) { errorMessage.value = error.message; }
+  }
+  if (authState.status === 'authenticated') finishLogin(getUser());
 }
 
 async function agreePrivacy() {
@@ -90,30 +74,19 @@ async function agreePrivacy() {
   finally { privacyChecking.value = false; }
 }
 
-async function phoneLogin(event) {
-  if (!canLogin.value) return;
-  errorMessage.value = '';
-  try {
-    const user = await loginWithWechatPhoneAuthorization(event);
-    if (user) emit('success', user);
-  } catch (error) { errorMessage.value = error.message || '微信登录未完成，请重试'; }
-}
-
 async function login() {
   if (!canLogin.value) return;
   errorMessage.value = '';
   try {
-    const confirmed = await new Promise(resolve => uni.showModal({
-      title: '确认微信登录',
-      content: '将使用当前微信应用已登录的账号进入微笑口腔。微信不会提供其他账号选择列表。',
-      confirmText: '确认登录',
-      success: result => resolve(Boolean(result.confirm)),
-      fail: () => resolve(false)
-    }));
-    if (!confirmed) return;
     const user = await loginWithWechat();
-    if (user) emit('success', user);
+    if (!user) return;
+    finishLogin(user);
   } catch (error) { errorMessage.value = error.message || '微信登录未完成，请重试'; }
+}
+
+function finishLogin(user) {
+  dismissLoginDialog();
+  emit('success', user);
 }
 
 function close() {
@@ -136,6 +109,5 @@ function close() {
 .retry-link { margin: 18rpx 0; color: #12836d; font-size: 24rpx; }
 .privacy-card { margin-top: 20rpx; padding: 20rpx; border-radius: 16rpx; background: #f2f7f2; }
 .login-submit { margin-top: 26rpx; }
-.phone-login { margin-top: 18rpx; font-size: 26rpx; }
 .browse-link { margin-top: 26rpx; color: #789086; font-size: 24rpx; }
 </style>

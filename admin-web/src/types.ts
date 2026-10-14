@@ -5,8 +5,11 @@ export interface User {
   displayName: string;
   roles: Role[];
   doctorId?: number;
+  avatarUrl?: string | null;
+  avatarDisplayUrl?: string | null;
 }
 export interface R<T> { code: string; message: string; data: T; traceId?: string }
+export interface FileUploadResult { url: string; objectKey: string; originalFilename: string; size: number; contentType: string }
 export interface PageResult<T> { records: T[]; total: number; page: number; size: number }
 export type DataRow = Record<string, unknown> & { id: number };
 export interface Department extends DataRow { name: string; status: number }

@@ -12,6 +12,8 @@ public class DepartmentEntity extends BaseEntity {
     private String name;
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String description;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String avatarUrl;
     private Integer sortOrder;
     private Integer status;
 
@@ -19,6 +21,8 @@ public class DepartmentEntity extends BaseEntity {
     public void setName(String name) { this.name = name; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
     public Integer getStatus() { return status; }

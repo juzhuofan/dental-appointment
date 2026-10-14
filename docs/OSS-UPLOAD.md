@@ -25,7 +25,7 @@ backend/src/main/java/com/dental/
 
 1. 在 OSS 控制台确认 Bucket 名为 `dental-backend`，地域为华北 2（北京）。本机通过外网 Endpoint 上传：`https://oss-cn-beijing.aliyuncs.com`，地域 ID 为 `cn-beijing`。其他地域应同时修改 Endpoint 和 region。
 2. 创建或使用有 AccessKey 的 RAM 用户。AccessKey Secret 只在创建时展示；原 Secret 未保存时，创建新的 AccessKey，并把新的一对 ID 和 Secret 填入后端配置。
-3. 给 RAM 用户授予本模块所需的上传权限。以下自定义策略只允许写入本模块的对象前缀，示例与默认 `object-prefix` 对应：
+3. 给 RAM 用户授予头像上传与私有读取权限。以下自定义策略仅允许访问本模块的对象前缀，示例与默认 `object-prefix` 对应：
 
 ```json
 {
@@ -33,18 +33,18 @@ backend/src/main/java/com/dental/
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["oss:PutObject"],
+      "Action": ["oss:PutObject", "oss:GetObject"],
       "Resource": ["acs:oss:*:*:dental-backend/dental/uploads/*"]
     }
   ]
 }
 ```
 
-本方法不创建 Bucket、不列举对象、不读取文件、不设置 ACL，因此不需要为此授予 `AliyunOSSFullAccess`。如果 Bucket Policy 另有限制，应一并确认写入权限。OSS 控制台的 Bucket 名、地域与 RAM 策略配置由使用者完成。
+本方法不创建 Bucket、不列举对象、不设置 ACL，因此不需要授予 `AliyunOSSFullAccess`。`oss:GetObject` 用于签名地址实际读取头像；如果 Bucket Policy 另有限制，应一并确认读写权限。OSS 控制台的 Bucket 名、地域与 RAM 策略配置由使用者完成。
 
 ## 3. 静态配置并启用
 
-在 `backend/src/main/resources/application.yml` 中编辑 `app.oss` 的非敏感设置；将真实 AccessKey ID/Secret 写入 Git 忽略的 `backend/src/main/resources/application-local.yml`。首次使用先复制 `application-local.example.yml`。下例的 AccessKey 字符串仅作填写提示，不要提交真实凭证；不使用环境变量或 `${...}` 动态占位符。
+在 `backend/src/main/resources/application.yml` 选择 `dev` 或 `prod`，并在对应 Profile 中编辑 `app.oss` 的非敏感配置。AccessKey ID/Secret 直接填写到 Git 忽略的 `application-private-dev.yml`、`application-private-prod.yml`，由 Profile 自动导入；公开 YAML 仅保留占位符。下例的 AccessKey 字符串仅作字段说明。
 
 ```yaml
 spring:
@@ -67,11 +67,11 @@ app:
     allowed-extensions: [jpg, jpeg, png, gif, webp, pdf, doc, docx, xls, xlsx, txt, csv, zip]
 ```
 
-将非敏感条目合并到 `application.yml` 已有的 `spring` 和 `app` 节点内，不要重复新增同名顶层节点。将 AccessKey ID/Secret 写入本机 `application-local.yml` 的 `app.oss` 节点。凭证填写完整后将 `enabled` 改为 `true`，重新启动后端。本机已按用户提供的凭证启用并完成真实上传验证；关闭时上传接口返回 HTTP 503 / `FILE_STORAGE_NOT_CONFIGURED`。
+修改所选环境 YAML 中已有的 `spring` 和 `app.oss` 节点，不要重复新增同名顶层节点。凭证填写完整后将 `enabled` 改为 `true`，重新启动后端。本机已按用户提供的凭证启用并完成真实上传验证；关闭时上传接口返回 HTTP 503 / `FILE_STORAGE_NOT_CONFIGURED`。
 
 启用时启动过程会校验 Bucket 名、凭证是否为空、HTTPS Endpoint、region、对象前缀和扩展名配置，不会在启动时访问 OSS。格式校验通过不代表凭证或云端权限正确，真实上传才能确认。
 
-`application-local.yml` 保留本机真实凭据并受 Git 忽略；local 配置会覆盖 `application.yml` 中同名的空值。不要把真实 AccessKey 放进前端、小程序或本说明文档中。
+开发与生产凭据分别保存在 Git 忽略的 `application-private-dev.yml` 和 `application-private-prod.yml`，由对应 Profile 自动导入。前端和小程序不包含 AccessKey。
 
 `public-base-url` 留空时，返回链接为：
 
@@ -85,9 +85,9 @@ https://dental-backend.oss-cn-beijing.aliyuncs.com/dental/uploads/2026/10/07/<UU
 
 返回值是稳定的普通 URL，不加密，不使用 `generatePresignedUrl`，也不会自动修改 Bucket 或 Object ACL。对象权限继承 Bucket 的设置。
 
-如果 Bucket/Object 为私有，上传可以成功，链接也可以正常存入数据库，但浏览器匿名打开这个无签名链接通常会收到 403。公共读资源才能按普通地址直接匿名查看；返回 URL 本身不会让私有资源变公开。医生头像等准备公开展示的资源，需要使用者在云端决定适当的读权限或访问域名方案。病例、检查报告等患者资料不应因需要存链接就改成公开资源。
+如果 Bucket/Object 为私有，上传可以成功，链接也可以正常存入数据库，但浏览器匿名打开这个无签名链接通常会收到 403。返回 URL 本身不会让私有资源变公开。科室、医生和账号头像在 API 响应中另带 `avatarDisplayUrl`：后端仅为当前 Bucket 和对象前缀下的 URL 生成 15 分钟读取签名，数据库仍只保存无签名 URL。公开科室和医生接口返回的临时地址在有效期内可由小程序展示；签名所用 RAM 身份需有对应对象的读取权限。
 
-本次只提供上传与返回链接，不包含私有文件的授权下载模块。
+患者头像继续使用原有 `/me` 响应中的临时展示地址；病例、检查报告等患者资料不应因头像展示而改成公开资源。
 
 ## 5. HTTP 上传接口
 
@@ -152,7 +152,7 @@ async function uploadFile(file: File): Promise<FileUploadResult> {
   return result.data;
 }
 
-// 文件选择完成后：先上传，再使用原有医生保存接口提交表单。
+// 管理端已实现此流程：先上传，再使用原有医生保存接口提交表单。
 // const uploaded = await uploadFile(selectedFile);
 // doctorForm.avatarUrl = uploaded.url;
 // await api.put(`/admin/doctors/${doctorId}`, doctorForm);
@@ -249,7 +249,7 @@ OSS 的 `AccessDenied` 常指 RAM/Bucket Policy 权限不足；`NoSuchBucket` �
 
 凭证补齐后，通过同一个 `FileUploadService.upload` 方法实际上传了 135 字节生成测试文本（不含患者或个人信息）至北京 `dental-backend`，服务返回成功链接。对象键为 `dental/uploads/2026/10/07/97eeaa1fa95b4afa80a359f3f4a8ba71.txt`，结果记录位于本机忽略目录 `.local/oss-verification/result.json`。未访问或写入业务数据库，未修改 Bucket/Object 权限。
 
-该普通 URL 的匿名 GET 返回 **403**，说明当前读权限不允许匿名读取；这不影响已经成功的上传及保存链接。后续公开头像或附件访问功能需要按第 4 节配置相应读取方案。重新做云端联调时，登录后调用 HTTP 上传接口并核对 OSS 控制台中的文件；是否能匿名打开返回 URL 由云端读权限决定。
+该普通 URL 的匿名 GET 返回 **403**，说明当前读权限不允许匿名读取；这不影响已经成功的上传及保存链接。2026-10-14，新生成的 11 张科室、医生及管理员头像通过当前后端上传到 OSS，数据库仅写入普通 URL；对应 API 返回的签名展示地址逐张 GET 均为 HTTP 200 / image/png。重新做云端联调时，登录后调用 HTTP 上传接口并核对 OSS 控制台中的文件；是否能匿名打开普通 URL 由云端读权限决定。
 
 本模块使用以下官方资料；页面示例中的地域按本项目北京 Bucket 调整：
 

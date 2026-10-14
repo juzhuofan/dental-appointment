@@ -50,7 +50,7 @@ class WechatAccountServiceTest {
     @Test
     void refusesSilentRegistrationWithoutWritingAnyAccount() {
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> accounts.authenticate("openid", null, false));
+                () -> accounts.authenticate("openid", false));
         assertEquals("WECHAT_REGISTRATION_REQUIRED", exception.getCode());
         verify(userMapper, never()).insert(any(SysUser.class));
         verify(userService, never()).initializeWechatPatient(any());
@@ -67,7 +67,7 @@ class WechatAccountServiceTest {
         });
         when(authService.issueWechat(any())).thenReturn(login);
 
-        assertSame(login, accounts.authenticate("wechat-real-openid", null, true));
+        assertSame(login, accounts.authenticate("wechat-real-openid", true));
 
         ArgumentCaptor<SysUser> captured = ArgumentCaptor.forClass(SysUser.class);
         verify(userMapper).insert(captured.capture());
@@ -85,34 +85,12 @@ class WechatAccountServiceTest {
     }
 
     @Test
-    void storesWechatVerifiedPhoneWhenRegistering() {
-        when(passwordEncoder.encode(any())).thenReturn("encoded-password");
-        when(userMapper.selectCount(any())).thenReturn(0L);
-        when(authService.issueWechat(any())).thenReturn(login);
-        assertSame(login, accounts.authenticate("openid", "13812345678", true));
-        ArgumentCaptor<SysUser> captured = ArgumentCaptor.forClass(SysUser.class);
-        verify(userMapper).insert(captured.capture());
-        assertEquals("13812345678", captured.getValue().getPhone());
-        verify(userService).initializeWechatPatient(captured.getValue());
-    }
-
-    @Test
-    void refusesPhoneAlreadyUsedByAnyOtherAccountWithoutMergingIt() {
-        when(userMapper.selectCount(any())).thenReturn(1L);
-        assertEquals("WECHAT_ACCOUNT_CONFLICT", assertThrows(BusinessException.class,
-                () -> accounts.authenticate("new-openid", "13812345678", true)).getCode());
-        verify(userMapper, never()).insert(any(SysUser.class));
-        verify(userMapper, never()).updateById(any(SysUser.class));
-        verify(authService, never()).issueWechat(any());
-    }
-
-    @Test
     void reloginRequiresExistingPatientRoleAndDoesNotCreateOrRebindUser() {
         SysUser existing = existingUser("openid", 1);
         when(userMapper.selectOne(any())).thenReturn(existing);
         when(userService.rolesOf(10L)).thenReturn(List.of("PATIENT"));
         when(authService.issueWechat(existing)).thenReturn(login);
-        assertSame(login, accounts.authenticate("openid", null, false));
+        assertSame(login, accounts.authenticate("openid", false));
         verify(userMapper, never()).insert(any(SysUser.class));
         verify(userService, never()).initializeWechatPatient(any());
     }
@@ -129,7 +107,7 @@ class WechatAccountServiceTest {
         };
         when(userService.rolesOf(10L)).thenReturn(roles);
         assertEquals(403, assertThrows(BusinessException.class,
-                () -> accounts.authenticate("openid", null, true)).getHttpStatus());
+                () -> accounts.authenticate("openid", true)).getHttpStatus());
         verify(userService, never()).initializeWechatPatient(any());
         verify(authService, never()).issueWechat(any());
     }
@@ -138,7 +116,7 @@ class WechatAccountServiceTest {
     void rejectsDisabledAccountWithoutTokensOrRoleChanges() {
         when(userMapper.selectOne(any())).thenReturn(existingUser("openid", 0));
         assertEquals(403, assertThrows(BusinessException.class,
-                () -> accounts.authenticate("openid", null, true)).getHttpStatus());
+                () -> accounts.authenticate("openid", true)).getHttpStatus());
         verify(authService, never()).issueWechat(any());
         verify(userService, never()).initializeWechatPatient(any());
     }
@@ -152,7 +130,7 @@ class WechatAccountServiceTest {
         when(userService.rolesOf(10L)).thenReturn(List.of("PATIENT"));
         when(authService.issueWechat(winner)).thenReturn(login);
 
-        assertSame(login, accounts.authenticate("openid", null, true));
+        assertSame(login, accounts.authenticate("openid", true));
 
         verify(userService, never()).initializeWechatPatient(any());
         verify(authService).issueWechat(winner);
@@ -163,7 +141,7 @@ class WechatAccountServiceTest {
         when(passwordEncoder.encode(any())).thenReturn("encoded-password");
         when(userMapper.insert(any(SysUser.class))).thenThrow(new DuplicateKeyException("duplicate"));
         assertEquals("WECHAT_ACCOUNT_CONFLICT", assertThrows(BusinessException.class,
-                () -> accounts.authenticate("openid", null, true)).getCode());
+                () -> accounts.authenticate("openid", true)).getCode());
         verify(authService, never()).issueWechat(any());
     }
 
@@ -172,44 +150,6 @@ class WechatAccountServiceTest {
         when(userMapper.selectOne(any())).thenReturn(existingUser("OpenId", 1));
         assertEquals("WECHAT_ACCOUNT_CONFLICT", assertThrows(BusinessException.class,
                 () -> accounts.findByOpenid("openid")).getCode());
-    }
-
-    @Test
-    void phoneConflictDuringBindingDoesNotAlterAccount() {
-        SysUser existing = existingUser("openid", 1);
-        SysUser phoneOwner = existingUser("different-openid", 1);
-        phoneOwner.setId(20L);
-        when(userMapper.selectOne(any())).thenReturn(existing, existing, phoneOwner);
-        when(userService.rolesOf(10L)).thenReturn(List.of("PATIENT"));
-        assertEquals("WECHAT_ACCOUNT_CONFLICT", assertThrows(BusinessException.class,
-                () -> accounts.authenticate("openid", "13812345678", false)).getCode());
-        verify(userMapper, never()).updateById(any(SysUser.class));
-        verify(authService, never()).issueWechat(any());
-    }
-
-    @Test
-    void translatesConcurrentPhoneUniqueViolationAndDoesNotIssueToken() {
-        SysUser existing = existingUser("openid", 1);
-        when(userMapper.selectOne(any())).thenReturn(existing, existing, null);
-        when(userService.rolesOf(10L)).thenReturn(List.of("PATIENT"));
-        when(userMapper.updateById(any(SysUser.class)))
-                .thenThrow(new DuplicateKeyException("duplicate-phone"));
-        assertEquals("WECHAT_ACCOUNT_CONFLICT", assertThrows(BusinessException.class,
-                () -> accounts.authenticate("openid", "13812345678", false)).getCode());
-        verify(userService, never()).initializeWechatPatient(any());
-        verify(authService, never()).issueWechat(any());
-    }
-
-    @Test
-    void refusesDifferentVerifiedPhoneOnSameIdentityInsteadOfReplacingExistingBinding() {
-        SysUser existing = existingUser("openid", 1);
-        existing.setPhone("13912345678");
-        when(userMapper.selectOne(any())).thenReturn(existing);
-        when(userService.rolesOf(10L)).thenReturn(List.of("PATIENT"));
-        assertEquals("WECHAT_ACCOUNT_CONFLICT", assertThrows(BusinessException.class,
-                () -> accounts.authenticate("openid", "13812345678", false)).getCode());
-        verify(userMapper, never()).updateById(any(SysUser.class));
-        verify(authService, never()).issueWechat(any());
     }
 
     private static SysUser existingUser(String openid, int status) {

@@ -108,6 +108,7 @@ public class AppointmentService {
         if (patient == null) {
             throw BusinessException.forbidden("就诊人资料不存在或不属于当前账号");
         }
+        String patientName = requireCompletePatient(patient);
         if (appointmentMapper.reserveSlot(schedule.getId(), now) != 1) {
             throw BusinessException.conflict("APPOINTMENT_FULL", "该时段号源已满或已关闭");
         }
@@ -119,7 +120,7 @@ public class AppointmentService {
         appointment.setScheduleId(schedule.getId());
         appointment.setDoctorId(schedule.getDoctorId());
         appointment.setDepartmentId(schedule.getDepartmentId());
-        appointment.setPatientNameSnapshot(patient.getRealName());
+        appointment.setPatientNameSnapshot(patientName);
         appointment.setPatientPhoneSnapshot(patient.getPhone());
         appointment.setDoctorNameSnapshot(schedule.getDoctorName());
         appointment.setDepartmentNameSnapshot(schedule.getDepartmentName());
@@ -271,7 +272,7 @@ public class AppointmentService {
     @Transactional(rollbackFor = Exception.class)
     public void cancelActiveBySchedule(long scheduleId) {
         lockSchedule(scheduleId);
-        cancelActiveOnLockedSchedule(scheduleId, null, "排班关闭或停诊");
+        cancelActiveOnLockedSchedule(scheduleId, null, "排班停诊或删除");
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -420,6 +421,15 @@ public class AppointmentService {
                     ? DEFAULT_CANCEL_BEFORE_MINUTES : appointment.getCancelBeforeMinutes(),
                 appointment.getCancelReason(), TimeUtil.toClinic(appointment.getCancelledAt()),
                 TimeUtil.toClinic(appointment.getCreatedAt()));
+    }
+
+    private static String requireCompletePatient(PatientSnapshotVO patient) {
+        String name = patient.getRealName() == null ? "" : patient.getRealName().trim();
+        String phone = patient.getPhone();
+        if (name.isBlank() || name.length() > 80 || phone == null || !phone.matches("1[3-9][0-9]{9}")) {
+            throw BusinessException.conflict("PATIENT_PROFILE_INCOMPLETE", "请先完善就诊人的姓名和11位手机号");
+        }
+        return name;
     }
 
     private static String normalizeComplaint(String complaint) {

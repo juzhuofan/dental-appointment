@@ -1,5 +1,9 @@
 ﻿param([switch]$WithoutPatientPreview)
 . (Join-Path $PSScriptRoot 'Common.ps1')
+$activeEnvironment = Get-ActiveEnvironment -Component 'backend'
+if ($activeEnvironment -ne 'dev') {
+    throw 'Start-Local.ps1 仅启动本机开发后端。请将 backend/src/main/resources/application.yml 的 spring.profiles.active 设为 dev。'
+}
 Import-LocalEnvironment
 $runtimeDir = Join-Path $ProjectRoot '.local'
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
@@ -37,11 +41,18 @@ $backendProcess = Start-Process -FilePath $javaCommand -ArgumentList @('-jar', (
     -WorkingDirectory (Join-Path $ProjectRoot 'backend') -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $runtimeDir 'backend.out.log') -RedirectStandardError (Join-Path $runtimeDir 'backend.err.log')
 try {
-    $adminProcess = Start-Process -FilePath $nodeCommand -ArgumentList @(('"' + $viteScript + '"'), '--host', '127.0.0.1', '--port', '5173', '--strictPort') `
+    $adminEnvironment = Get-ActiveEnvironment -Component 'admin-web'
+    $adminConfig = Get-FrontendEnvironmentSettings -Component 'admin-web' -Environment $adminEnvironment
+    $env:VITE_API_BASE_URL = $adminConfig['VITE_API_BASE_URL']
+    $env:VITE_DEV_PROXY_TARGET = $adminConfig['VITE_DEV_PROXY_TARGET']
+    $adminProcess = Start-Process -FilePath $nodeCommand -ArgumentList @(('"' + $viteScript + '"'), '--mode', $adminEnvironment, '--host', '127.0.0.1', '--port', '5173', '--strictPort') `
         -WorkingDirectory (Join-Path $ProjectRoot 'admin-web') -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $runtimeDir 'admin.out.log') -RedirectStandardError (Join-Path $runtimeDir 'admin.err.log')
     if (-not $WithoutPatientPreview) {
-        $patientProcess = Start-Process -FilePath $nodeCommand -ArgumentList @(('"' + $patientScript + '"')) `
+        $miniappEnvironment = Get-ActiveEnvironment -Component 'miniapp'
+        $miniappConfig = Get-FrontendEnvironmentSettings -Component 'miniapp' -Environment $miniappEnvironment
+        $env:VITE_API_BASE_URL = $miniappConfig['VITE_API_BASE_URL']
+        $patientProcess = Start-Process -FilePath $nodeCommand -ArgumentList @(('"' + $patientScript + '"'), '--mode', $miniappEnvironment) `
             -WorkingDirectory (Join-Path $ProjectRoot 'miniapp') -WindowStyle Hidden -PassThru `
             -RedirectStandardOutput (Join-Path $runtimeDir 'patient.out.log') -RedirectStandardError (Join-Path $runtimeDir 'patient.err.log')
     }
@@ -72,5 +83,9 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
 }
 if (-not $backendReady) { Write-Warning '后端仍在启动，请查看 .local/backend.out.log。' }
 Write-Host ('管理后台：http://127.0.0.1:5173/；后端：http://127.0.0.1:' + $env:SERVER_PORT)
-if (-not $WithoutPatientPreview) { Write-Host '患者端 H5 预览：http://127.0.0.1:5174/；正式小程序请导入微信开发者工具。' }
-Write-Host '演示账号密码见本地 .env.local；停止服务执行 scripts/Stop-Local.ps1。'
+Write-Host ("运行环境：后端 dev；管理端 $adminEnvironment。")
+if (-not $WithoutPatientPreview) {
+    Write-Host '患者端 H5 预览：http://127.0.0.1:5174/；正式小程序请导入微信开发者工具。'
+    Write-Host ("小程序预览环境：$miniappEnvironment。")
+}
+Write-Host '演示账号密码见 backend/src/main/resources/application-private-dev.yml；停止服务执行 scripts/Stop-Local.ps1。'

@@ -27,9 +27,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 仅 local 环境注入虚构科室、医生和未来号源；已有数据及人工停用状态会保留。 */
+/** 仅 dev 环境注入虚构科室、医生和未来号源；已有数据及人工停用状态会保留。 */
 @Component
-@Profile("local")
+@Profile("dev")
 @Order(200)
 public class LocalDemoCatalogInitializer implements ApplicationRunner {
 

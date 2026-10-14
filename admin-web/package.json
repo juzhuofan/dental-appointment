@@ -5,9 +5,9 @@
   "type": "module",
   "engines": { "node": "24.18.0" },
   "scripts": {
-    "dev": "vite",
+    "dev": "node ../scripts/with-environment.mjs admin-web dev",
     "typecheck": "vue-tsc --noEmit",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --noEmit && node ../scripts/with-environment.mjs admin-web build",
     "preview": "vite preview"
   },
   "dependencies": {

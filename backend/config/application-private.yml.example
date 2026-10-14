@@ -1,0 +1,20 @@
+# Copy to src/main/resources/application-private-dev.yml or application-private-prod.yml.
+# Fill actual credentials locally. Never commit the resulting private file.
+spring:
+  datasource:
+    password: 'CHANGE_ME_PASSWORD'
+  data:
+    redis:
+      password: 'CHANGE_ME_PASSWORD'
+app:
+  ai:
+    api-key: 'CHANGE_ME_API_KEY'
+  wechat:
+    app-secret: 'CHANGE_ME_APP_SECRET'
+  oss:
+    access-key-id: 'CHANGE_ME_ACCESS_KEY_ID'
+    access-key-secret: 'CHANGE_ME_ACCESS_KEY_SECRET'
+  jwt:
+    secret: 'CHANGE_ME_RANDOM_JWT_SECRET_MINIMUM_32_BYTES'
+DEMO_ADMIN_PASSWORD: 'CHANGE_ME_DEMO_ADMIN_PASSWORD'
+DEMO_DOCTOR_PASSWORD: 'CHANGE_ME_DEMO_DOCTOR_PASSWORD'

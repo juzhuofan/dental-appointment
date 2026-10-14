@@ -8,9 +8,9 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-/** 仅 local 环境从环境变量幂等创建演示管理员与医生账号。 */
+/** 仅 dev 环境按配置幂等创建演示管理员与医生账号。 */
 @Component
-@Profile("local")
+@Profile("dev")
 @Order(100)
 public class LocalDemoAccountInitializer implements ApplicationRunner {
     private static final int MINIMUM_PASSWORD_LENGTH = 8;

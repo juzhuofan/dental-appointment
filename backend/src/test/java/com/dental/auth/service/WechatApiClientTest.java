@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -14,9 +13,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.dental.common.BusinessException;
 import com.dental.config.WechatProperties;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,7 +20,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -40,13 +35,11 @@ class WechatApiClientTest {
     void setUp() {
         properties = new WechatProperties();
         properties.setEnabled(true);
-        properties.setPhoneNumberEnabled(true);
         properties.setAppId(APP_ID);
         properties.setAppSecret("test-app-secret");
         RestClient.Builder builder = RestClient.builder().baseUrl("https://api.weixin.qq.com");
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new WechatApiClient(properties, builder.build(),
-                Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC));
+        client = new WechatApiClient(properties, builder.build());
     }
 
     @Test
@@ -174,100 +167,4 @@ class WechatApiClientTest {
         server.verify();
     }
 
-    @Test
-    void obtainsIndependentPhoneAuthorizationAndCachesStableToken() {
-        expectToken(false, "cached-token");
-        server.expect(ExpectedCount.times(2), requestTo(
-                        "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=cached-token"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().json("{\"code\":\"phone-code\"}"))
-                .andRespond(withSuccess(phoneResponse(APP_ID, "13812345678", "86"),
-                        MediaType.APPLICATION_JSON));
-
-        assertEquals("13812345678", client.exchangePhoneCode("phone-code"));
-        assertEquals("13812345678", client.exchangePhoneCode("phone-code"));
-        server.verify();
-    }
-
-    @Test
-    void acceptsTextPlainJsonFromStableTokenAndPhoneNumberEndpoints() {
-        expectToken(false, "plain-token", MediaType.TEXT_PLAIN);
-        server.expect(requestTo(
-                        "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=plain-token"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().json("{\"code\":\"phone-code\"}"))
-                .andRespond(withSuccess(phoneResponse(APP_ID, "13812345678", "86"),
-                        MediaType.TEXT_PLAIN));
-
-        assertEquals("13812345678", client.exchangePhoneCode("phone-code"));
-        server.verify();
-    }
-
-    @Test
-    void refreshesInvalidTokenOnceBeforeRetryingPhoneAuthorization() {
-        expectToken(false, "old-token");
-        server.expect(requestTo(
-                        "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=old-token"))
-                .andRespond(withSuccess("{\"errcode\":40001}", MediaType.APPLICATION_JSON));
-        expectToken(true, "fresh-token");
-        server.expect(requestTo(
-                        "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=fresh-token"))
-                .andRespond(withSuccess(phoneResponse(APP_ID, "13812345678", "86"),
-                        MediaType.APPLICATION_JSON));
-
-        assertEquals("13812345678", client.exchangePhoneCode("phone-code"));
-        server.verify();
-    }
-
-    @ParameterizedTest
-    @CsvSource({"wx9876543210abcdef,13812345678,86", "wx0123456789abcdef,123,86",
-            "wx0123456789abcdef,13812345678,1"})
-    void rejectsDifferentAppidOrInvalidChinaPhone(String watermarkAppid, String phone, String country) {
-        expectToken(false, "token");
-        server.expect(requestTo(
-                        "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=token"))
-                .andRespond(withSuccess(phoneResponse(watermarkAppid, phone, country),
-                        MediaType.APPLICATION_JSON));
-        assertEquals("WECHAT_RESPONSE_INVALID", assertThrows(BusinessException.class,
-                () -> client.exchangePhoneCode("phone-code")).getCode());
-        server.verify();
-    }
-
-    @Test
-    void rejectsUnopenedPhoneCapabilityWithoutNetworkCalls() {
-        properties.setPhoneNumberEnabled(false);
-        assertEquals("WECHAT_PHONE_UNAVAILABLE", assertThrows(BusinessException.class,
-                () -> client.exchangePhoneCode("phone-code")).getCode());
-        server.verify();
-    }
-
-    @Test
-    void rejectsInvalidTokenResponseBeforePhoneCall() {
-        server.expect(requestTo("https://api.weixin.qq.com/cgi-bin/stable_token"))
-                .andRespond(withSuccess("{\"access_token\":\"token\",\"expires_in\":0}",
-                        MediaType.APPLICATION_JSON));
-        assertEquals("WECHAT_RESPONSE_INVALID", assertThrows(BusinessException.class,
-                () -> client.exchangePhoneCode("phone-code")).getCode());
-        server.verify();
-    }
-
-    private void expectToken(boolean forceRefresh, String token) {
-        expectToken(forceRefresh, token, MediaType.APPLICATION_JSON);
-    }
-
-    private void expectToken(boolean forceRefresh, String token, MediaType responseType) {
-        server.expect(requestTo("https://api.weixin.qq.com/cgi-bin/stable_token"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().json("{\"grant_type\":\"client_credential\",\"appid\":\""
-                        + APP_ID + "\",\"secret\":\"test-app-secret\",\"force_refresh\":"
-                        + forceRefresh + "}"))
-                .andRespond(withSuccess("{\"access_token\":\"" + token + "\",\"expires_in\":7200}",
-                        responseType));
-    }
-
-    private static String phoneResponse(String appid, String phone, String country) {
-        return "{\"errcode\":0,\"phone_info\":{\"purePhoneNumber\":\"" + phone
-                + "\",\"countryCode\":\"" + country + "\",\"watermark\":{\"appid\":\""
-                + appid + "\"}}}";
-    }
 }

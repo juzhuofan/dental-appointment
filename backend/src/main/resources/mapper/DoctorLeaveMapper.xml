@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dental.leave.mapper.DoctorLeaveMapper">
+    <resultMap id="leaveMap" type="com.dental.leave.entity.DoctorLeaveEntity">
+        <id column="id" property="id"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="reason" property="reason"/>
+        <result column="status" property="status"/>
+        <result column="reviewed_by" property="reviewedBy"/>
+        <result column="review_remark" property="reviewRemark"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="doctor_name" property="doctorName"/>
+        <result column="department_name" property="departmentName"/>
+    </resultMap>
+
+    <sql id="leaveJoins">
+        FROM doctor_leave l
+        LEFT JOIN doctor d ON d.id = l.doctor_id
+        LEFT JOIN department dep ON dep.id = d.department_id
+    </sql>
+    <sql id="leaveColumns">l.*, d.name AS doctor_name, dep.name AS department_name</sql>
+
+    <select id="findDetail" resultMap="leaveMap">
+        SELECT <include refid="leaveColumns"/> <include refid="leaveJoins"/>
+        WHERE l.id = #{id} AND l.deleted = 0
+    </select>
+    <select id="lockLeave" resultMap="leaveMap">
+        SELECT <include refid="leaveColumns"/> <include refid="leaveJoins"/>
+        WHERE l.id = #{id} AND l.deleted = 0 FOR UPDATE OF l
+    </select>
+    <sql id="filterWhere">
+        WHERE l.deleted = 0
+        <if test="doctorId != null">AND l.doctor_id = #{doctorId}</if>
+        <if test="status != null">AND l.status = #{status}</if>
+    </sql>
+    <select id="findPage" resultMap="leaveMap">
+        SELECT <include refid="leaveColumns"/> <include refid="leaveJoins"/>
+        <include refid="filterWhere"/> ORDER BY l.created_at DESC, l.id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM doctor_leave l <include refid="filterWhere"/>
+    </select>
+    <!-- FOR UPDATE 使用当前读：医生锁等待期间另一事务刚批准的请假也必须可见。 -->
+    <select id="countApprovedOverlaps" resultType="long">
+        SELECT COUNT(*) FROM doctor_leave
+        WHERE doctor_id = #{doctorId} AND deleted = 0 AND status = 'APPROVED'
+          AND start_time &lt; #{end} AND end_time &gt; #{start}
+        FOR UPDATE
+    </select>
+    <select id="lockOverlappingScheduleIds" resultType="long">
+        SELECT id FROM doctor_schedule
+        WHERE doctor_id = #{doctorId} AND deleted = 0 AND status IN ('DRAFT', 'PUBLISHED', 'CLOSED')
+          AND start_time &lt; #{end} AND end_time &gt; #{start}
+        ORDER BY id FOR UPDATE
+    </select>
+    <select id="countActiveAppointments" resultType="long">
+        SELECT COUNT(*) FROM appointment
+        WHERE deleted = 0 AND status IN ('PENDING', 'CONFIRMED')
+          AND schedule_id IN
+          <foreach collection="scheduleIds" item="scheduleId" open="(" separator="," close=")">#{scheduleId}</foreach>
+        FOR UPDATE
+    </select>
+    <insert id="linkCancelledSchedule">
+        INSERT IGNORE INTO doctor_leave_schedule (leave_id, schedule_id) VALUES (#{leaveId}, #{scheduleId})
+    </insert>
+    <update id="reviewPending">
+        UPDATE doctor_leave SET status = #{status}, reviewed_by = #{reviewedBy}, review_remark = #{remark},
+            reviewed_at = #{now}, updated_at = #{now}
+        WHERE id = #{id} AND deleted = 0 AND status = 'PENDING'
+    </update>
+    <update id="withdrawPending">
+        UPDATE doctor_leave SET status = 'WITHDRAWN', updated_at = #{now}
+        WHERE id = #{id} AND doctor_id = #{doctorId} AND deleted = 0 AND status = 'PENDING'
+    </update>
+</mapper>

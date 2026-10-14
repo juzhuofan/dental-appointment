@@ -12,6 +12,7 @@ public record UserSaveDTO(
         @NotBlank @Pattern(regexp = "[A-Za-z0-9_.-]{3,64}") String username,
         @Size(min = 8, max = 72) String password,
         @NotBlank @Size(max = 80) String displayName,
+        @Size(max = 500) @Pattern(regexp = "^https?://.*$", message = "头像地址必须使用 http 或 https") String avatarUrl,
         @NotBlank @Pattern(regexp = "ADMIN|DOCTOR|PATIENT") String role,
         @NotNull @Min(0) @Max(1) Integer status) {
 }

@@ -12,7 +12,10 @@ scripts/       Windows 本地构建、启动、停止和验证脚本
 tests/         真实本地服务接口验证及管理端、患者端浏览器验证
 docs/          设计文档、接口契约、实现约定与验证记录
 .env.example   可提交的配置模板
-.env.local     仅保存在本机的连接密码和演示账号配置（Git 忽略）
+.env.local     本机工具链与旧启动脚本的环境变量（Git 忽略）
+backend/src/main/resources/application*.yml  后端开发/生产配置及选择入口
+admin-web/.env*  管理端环境配置与选择入口
+miniapp/.env*    小程序环境配置与选择入口
 .local/        本地日志、进程记录、缓存、验证截图（Git 忽略）
 ```
 
@@ -20,9 +23,9 @@ docs/          设计文档、接口契约、实现约定与验证记录
 
 必须使用 Java 17、Node.js 24.18.0、MySQL 8.0.45、Redis 3.2.100。Redis 为本机 Windows 移植版，本项目只使用基础缓存命令。管理端与小程序依赖分别固定在各自的 package-lock.json 中；详细 Java 依赖见 backend/pom.xml。
 
-后端公共配置位于 `backend/src/main/resources/application.yml`；MySQL、Redis、JWT、OSS 和微信的真实凭据写入本机静态文件 `backend/src/main/resources/application-local.yml`，该文件受 Git 忽略。首次使用时复制旁边的 `application-local.example.yml` 并填写。工具脚本仍从 `.env.local` 读取 JAVA_HOME、Maven 路径和本地初始化账号，其中 JDK 为 `C:\jdk\jdk17`。数据库名称为 `dental_appointment`，数据库表通过 Flyway 自动创建。local 环境可初始化诊所演示科室、医生、排班及管理员/医生账号；微信患者的身份、头像及就诊资料不使用演示数据。
+后端、管理端与小程序各有开发、生产和环境选择配置，入口与使用步骤见 [环境配置说明](docs/ENVIRONMENTS.md)。后端以 `src/main/resources/application.yml` 选择 `dev` 或 `prod`；真实 MySQL、Redis、JWT、OSS、微信和 AI 凭据由对应的 Git 忽略文件 `application-private-dev.yml`、`application-private-prod.yml` 自动导入，公共配置只保留占位符。本机仍可直接编辑私有 YAML。工具脚本从项目根目录 `.env.local` 读取 JAVA_HOME、Maven 路径和本机端口。数据库名称为 `dental_appointment`，数据库表通过 Flyway 自动创建。开发环境可初始化演示科室、医生、排班及管理员/医生账号；微信患者资料不使用演示数据。
 
-如在另一台电脑运行，先复制 `.env.example` 为 `.env.local`，填写连接密码、随机 JWT_SECRET、DEMO_ADMIN_PASSWORD 和 DEMO_DOCTOR_PASSWORD，再创建空数据库：
+如在另一台电脑运行，先复制 `.env.example` 为 `.env.local` 并填写工具链路径；再将 `backend/config/application-private.yml.example` 复制到 `backend/src/main/resources/application-private-dev.yml`，填写数据库、Redis、JWT 等凭据以及演示密码，并创建空数据库：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS dental_appointment
@@ -48,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Start-Local.ps1
 - 服务健康：http://127.0.0.1:8080/actuator/health
 - 接口契约：[docs/API-CONTRACT.md](docs/API-CONTRACT.md)
 
-管理员账号为 `admin`，密码见 `.env.local` 的 `DEMO_ADMIN_PASSWORD`；演示医生账号为 `doctor`，密码见 `DEMO_DOCTOR_PASSWORD`。本地演示初始化仅在 local 环境执行。修改密码后，后续启动保留新密码，不重新覆盖既有账号。
+管理员账号为 `admin`，演示医生账号为 `doctor`；演示密码在 Git 忽略的 `backend/src/main/resources/application-private-dev.yml` 的 `DEMO_*` 项中。本地演示初始化仅在 `dev` 环境执行。修改密码后，后续启动保留新密码，不重新覆盖既有账号。
 
 启动脚本默认同时开启患者 H5 预览；仅使用微信开发者工具时可以加 `-WithoutPatientPreview`。停止项目后端、管理端和患者预览：
 
@@ -62,9 +65,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Stop-Local.ps1
 
 构建成功后，在微信开发者工具中导入 `miniapp` 目录；根目录的 project.config.json 已指定 `dist/build/mp-weixin/` 为小程序代码目录，AppID 已设置为用户提供的 ID。
 
-微信开发者工具本地运行时关闭“校验合法域名”。默认 API 地址为 `http://127.0.0.1:8080/api/v1`，可以在 miniapp 环境配置中调整。真机联调需要将地址换成电脑局域网 IP，并保证手机能访问后端；当前交付重点是本机开发者工具演示。
+微信开发者工具本地运行时关闭“校验合法域名”。开发模式默认 API 地址为 `http://127.0.0.1:8080/api/v1`，在 `miniapp/.env.development` 调整。真机联调需要将地址换成电脑局域网 IP，并保证手机能访问后端；切换配置后重新构建和编译。生产模式配置见 [环境配置说明](docs/ENVIRONMENTS.md)。
 
-打开小程序时检查已有 token，有效用户直接进入；未登录显示微信一键登录和暂未开放的手机号登录选项。用户点击微信登录并确认当前微信账号后才验证身份。微信不提供小程序内多账号选择列表；登录后可在“我的”选用微信建议昵称、头像或自行设置。账号可以维护多个就诊人，预约时选择实际就诊者。当前个人主体不获取微信手机号，用户在就诊资料中填写联系电话。演示点击登录已关闭，配置和微信后台设置见 [微信登录说明](docs/WECHAT-LOGIN.md)，真机连接修复步骤见 [真机调试说明](docs/REAL-DEVICE-DEBUG.md)。
+打开小程序时检查已有 token，有效用户直接进入；未登录显示微信一键登录。用户点击微信登录并确认当前微信账号后才验证身份。微信不提供小程序内多账号选择列表；登录后可在“我的”选用微信建议昵称、头像或自行设置。账号可以维护多个就诊人，预约时选择实际就诊者。系统不获取微信手机号，用户在就诊资料中填写联系电话。演示点击登录已关闭，配置和微信后台设置见 [微信登录说明](docs/WECHAT-LOGIN.md)，真机连接修复步骤见 [真机调试说明](docs/REAL-DEVICE-DEBUG.md)。
 
 ## 建议演示流程
 

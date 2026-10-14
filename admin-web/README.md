@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-打开 <http://127.0.0.1:5173>，使用项目根 README 提供的本地演示账号登录。前端不保存或自动填充密码。开发服务器将 `/api` 代理到本机后端。
+打开 <http://127.0.0.1:5173>，使用项目根 README 提供的本地演示账号登录。前端不保存或自动填充密码。本目录 `.env` 的 `APP_ENV` 选择 `development` 或 `production`；API 地址与开发代理目标分别在 `.env.development`、`.env.production`，详见 [环境配置说明](../docs/ENVIRONMENTS.md)。
 
 ## 构建与类型检查
 
@@ -21,7 +21,7 @@ npm run build
 npm run preview
 ```
 
-`dist` 为管理端构建产物。正式部署使用服务端托管 `dist`，将 `/api` 反向代理到后端，并为 history 路由配置 `index.html` 回退。Vite preview 仅用于查看产物；其 `/api` 未配置代理，如需连接后端请使用正式反向代理或构建前在本地 `.env.local` 设置后端完整地址及后端 CORS。
+`dist` 为管理端构建产物。正式部署使用服务端托管 `dist`，将 `/api` 反向代理到后端，并为 history 路由配置 `index.html` 回退。Vite preview 仅用于查看产物，其 `/api` 未配置代理。
 
 ## 约定
 
@@ -29,6 +29,7 @@ npm run preview
 - 日期录入、显示统一为北京时间，提交为带 `+08:00` 的 ISO-8601 字符串。
 - 列表包含搜索、分页、加载、空态、错误提示；删除、停诊与状态转换均需确认。所有删除在后端执行逻辑删除。
 - 医生档案需关联角色为 `DOCTOR` 的账号；可先在账号管理中创建，再到医生档案关联。
+- 科室、医生及管理员/医生账号的头像在编辑表单中选择 JPG、PNG 或 WebP 图片上传至 OSS，保存表单后写入稳定 URL。列表和工作台头像使用后端生成的短期展示地址；更换头像后旧对象不会自动删除。
 - 依赖版本精确写入 `package.json`，解析结果由 `package-lock.json` 固定，使用 `npm ci` 复现。
 - `.npmrc` 使用官方 npm 源并将下载缓存保存在本目录 `.npm-cache`，避免本机全局缓存目录权限问题。缓存已忽略，不提交。
 - 本目录采用 Composition API、业务页面与公共请求/日期处理分层，TypeScript 开启严格校验。

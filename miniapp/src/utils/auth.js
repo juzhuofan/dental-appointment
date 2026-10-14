@@ -15,14 +15,6 @@ export function dismissLoginDialog() {
   authState.dialogVisible = false;
 }
 
-/** 微信只返回身份标识；昵称和头像需要用户在微信原生控件中主动选择。 */
-export function offerAccountProfileSetup(user) {
-  const needsSetup = Boolean(user?.wechatBound
-    && (user.displayName === '微信用户' || !user.avatarUrl));
-  authState.justLoggedIn = needsSetup;
-  return needsSetup;
-}
-
 export async function refreshPrivacyRequirement() {
   const privacy = await getPrivacyRequirement();
   authState.privacyRequired = privacy.needAuthorization === true;
@@ -33,6 +25,7 @@ export async function refreshPrivacyRequirement() {
 /** 启动只检查业务会话；未登录时由用户点击微信登录，不自动取得微信 code。 */
 export function bootstrapAuth({ retry = false } = {}) {
   if (bootstrapPromise && ((!retry && !authState.needsBootstrap) || !authState.ready)) return bootstrapPromise;
+  const bootstrapToken = getToken();
   authState.ready = false;
   authState.needsBootstrap = false;
   authState.status = 'checking';
@@ -51,6 +44,8 @@ export function bootstrapAuth({ retry = false } = {}) {
       if (token) {
         try {
           const user = await api.me({ redirectOn401: false });
+          // A newer login or logout owns the current session, even if this request finishes later.
+          if (token !== getToken()) return hasSession() ? getUser() : null;
           if (user.wechatBound === true) {
             saveUser(user);
             lastValidatedAt = Date.now();
@@ -59,6 +54,7 @@ export function bootstrapAuth({ retry = false } = {}) {
           }
           clearSession();
         } catch (error) {
+          if (error.staleSession || (getToken() && token !== getToken())) return hasSession() ? getUser() : null;
           if (error.status === 401) clearSession();
           else throw error;
         }
@@ -67,6 +63,7 @@ export function bootstrapAuth({ retry = false } = {}) {
       openLoginDialog();
       return null;
     } catch (error) {
+      if (bootstrapToken !== getToken()) return hasSession() ? getUser() : null;
       authState.status = 'guest';
       authState.error = error.message || '登录状态确认失败，请重试';
       openLoginDialog();
@@ -90,14 +87,21 @@ export function resumeAuth() {
 
 export function uploadAvatar(filePath) {
   if (!filePath || !getToken()) return Promise.reject(new Error('请先完成微信身份验证并选择头像'));
+  const token = getToken();
   return new Promise((resolve, reject) => {
     uni.uploadFile({
       url: `${API_BASE_URL}/me/avatar`,
       filePath,
       name: 'file',
-      header: { Authorization: `Bearer ${getToken()}` },
+      header: { Authorization: `Bearer ${token}` },
       timeout: 60000,
       success(response) {
+        if (token !== getToken()) {
+          const error = new Error('登录状态已变化，请重新打开资料编辑后重试');
+          error.staleSession = true;
+          reject(error);
+          return;
+        }
         let body;
         try { body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data; }
         catch { reject(new Error('头像上传响应格式不正确，请重试')); return; }
@@ -117,22 +121,17 @@ export function uploadAvatar(filePath) {
   });
 }
 
-/** 用户主动点击后取得新的微信 code；头像不作为建立微信身份的条件。 */
-export async function loginWithWechat({ phoneCode } = {}) {
+/** 微信身份验证成功即完成登录；昵称和头像由用户在个人中心自选。 */
+export async function loginWithWechat() {
   await bootstrapAuth();
   if (authState.busy) return null;
   if (!isWechatMiniProgram()) throw new Error('请在微信小程序中使用微信登录');
   if (!authState.config.enabled) throw new Error('诊所暂未启用微信登录');
   if (authState.privacyRequired) throw new Error('请先同意微信隐私保护指引');
-  if (authState.config.phoneNumberEnabled && !phoneCode) {
-    throw new Error('请通过微信按钮授权手机号后登录');
-  }
   authState.busy = true;
   authState.error = '';
   try {
-    const data = { loginCode: await getWechatLoginCode(), register: true };
-    if (phoneCode) data.phoneCode = phoneCode;
-    saveSession(await api.wechatLogin(data));
+    saveSession(await api.wechatLogin({ loginCode: await getWechatLoginCode(), register: true }));
     if (!hasSession()) throw new Error('微信身份验证尚未完成，请重试');
     lastValidatedAt = Date.now();
     dismissLoginDialog();
@@ -143,13 +142,6 @@ export async function loginWithWechat({ phoneCode } = {}) {
   } finally {
     authState.busy = false;
   }
-}
-
-/** 只接受微信原生 getPhoneNumber 事件返回的 code；拒绝授权不会调用登录接口。 */
-export function loginWithWechatPhoneAuthorization(event) {
-  const phoneCode = event?.detail?.code;
-  if (!phoneCode) return Promise.reject(new Error('你未同意手机号授权，尚未登录。可重新授权或先浏览诊所。'));
-  return loginWithWechat({ phoneCode });
 }
 
 export async function ensureLogin(next = '/pages/me/index') {

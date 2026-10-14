@@ -1,8 +1,8 @@
 # 微信小程序真实登录与 OSS 头像
 
-当前配置采用个人主体模式：`app.wechat.phone-number-enabled: false`。打开小程序时检查已有登录状态；未登录显示“微信一键登录”和暂未开放的“手机号登录”选项，点击微信登录后才取得真实微信凭证。头像不再是登录前置条件，可以登录后在个人中心选择并上传 OSS。系统不生成虚假微信身份、手机号或姓名。
+打开小程序时检查已有登录状态；未登录显示“微信一键登录”，点击后才取得真实微信凭证。头像不作为登录前置条件，可以登录后在个人中心选择并上传 OSS。系统不获取微信手机号，也不生成虚假微信身份、手机号或姓名；就诊联系电话由用户填写。
 
-普通微信登录按钮先让用户确认使用当前微信应用登录的账号。微信小程序的 `wx.login` 返回当前微信身份的一次性凭证，不提供切换多个微信账号的原生列表；手机号选择列表属于 `getPhoneNumber` 能力，当前个人主体未开通。微信头像与昵称也不会由 `wx.login` 自动返回。登录后“我的”展示账号昵称，并提供独立的账号资料编辑：`input type="nickname"` 供用户选用微信建议昵称或手动输入，`chooseAvatar` 供用户选用微信头像或其他图片。头像由后端上传 OSS，昵称存入 `sys_user.display_name`，均不影响就诊人真实姓名。
+用户点击普通微信登录按钮后，直接使用当前微信应用登录的账号进行身份验证。微信小程序的 `wx.login` 返回当前微信身份的一次性凭证，不提供切换多个微信账号的原生列表。微信头像与昵称也不会由 `wx.login` 自动返回。新用户以“微信用户”和默认头像进入，已有用户恢复服务端保存的账号资料；身份验证成功即关闭登录弹窗，不自动跳转到个人中心。用户可在“我的”主动打开独立的账号资料编辑：`input type="nickname"` 供用户选用微信建议昵称或手动输入，`chooseAvatar` 供用户选用微信头像或其他图片。头像由后端上传 OSS，昵称存入 `sys_user.display_name`，两项均可稍后设置，不影响就诊人真实姓名。
 
 同一账号可管理多个就诊人。V4 Flyway 迁移移除 `patient_profile.user_id` 唯一约束，保留一位默认就诊人；预约界面可选择就诊人，防重键使用 `patient_profile_id:schedule_id`。已有就诊人和预约随迁移保留。
 
@@ -10,25 +10,22 @@
 
 1. 首次进入首页时检查已有业务 token。有效且属于微信账号时直接恢复用户资料。
 2. 没有有效 token 时直接展示登录选项，不在启动阶段调用微信登录，也不自动开户。
-3. 用户点击“微信一键登录”并确认使用当前微信账号后调用 `uni.login({ provider: 'weixin' })`，使用新的一次性 `loginCode` 和 `register: true` 发起后端认证；此时不要求选择头像。
+3. 用户点击“微信一键登录”后调用 `uni.login({ provider: 'weixin' })`，使用新的一次性 `loginCode` 和 `register: true` 发起后端认证；此时不要求填写昵称或选择头像。
 4. 后端使用 AppID、AppSecret 和 `loginCode` 调用微信 `code2Session`。仅使用微信服务器返回的 OpenID 查找或创建 `PATIENT` 账号；不能信任客户端自报的 OpenID、用户 ID 或手机号。
-5. 微信身份验证成功就保存业务 token；未设置账号昵称或头像的用户会进入“我的”并打开资料设置，也可关闭后稍后设置。个人模式不强制存在头像或手机号。
-6. 在个人中心点击“更换头像”时，独立组件处理微信隐私授权、头像选择和 OSS 上传；头像上传失败不会撤销已经验证的登录身份。
+5. 微信身份验证成功就保存业务 token 并关闭登录弹窗，首页停留原页面，登录页返回原目标页面。未设置账号昵称或头像的用户在“我的”看到选填提示，只有主动点击才打开资料编辑器。登录不强制存在头像或手机号。
+6. 在个人中心打开资料编辑后，直接点击头像选择图片、填写昵称，再点一次“保存资料”统一提交。头像选择仅预览，关闭面板不提交修改；只有微信平台要求时才显示隐私授权，昵称编辑不依赖头像授权。头像上传失败不会撤销已经验证的登录身份，面板保留草稿供重试；昵称已保存时会明确提示，不重复保存已完成的昵称。
 7. 后续打开时，有效 token 的用户直接进入首页；失效则显示登录选项，用户点击后取得新的微信 code，由后端验证同一 OpenID 并签发 token。停用账号不会被自动恢复。
-
-参考图片中的号码列表属于原生 `getPhoneNumber` 手机号授权，不是微信账号选择器。只有主体已开通手机号能力时，微信一键登录按钮才能触发该面板；启用后前端使用真实原生组件，不自行绘制号码或微信账号列表。当前个人模式使用当前微信账号验证身份，不能自动读手机号；需要切换微信账号时应在微信中操作。
 
 `wx.checkSession` 检查微信 `session_key` 是否有效；项目接口使用自己的业务 token，由后端校验。两种登录状态的有效期不能互相代替。`loginCode` 只使用一次，不保存作后续身份凭据。
 
 ## 2. 后端静态配置
 
-公共配置文件为 `backend/src/main/resources/application.yml`。MySQL、Redis、JWT、微信 AppSecret 和 OSS AccessKey 的真实值放在 Git 忽略的 `application-local.yml`，首次使用先复制 `application-local.example.yml`。以下字符串仅为示例，不能直接作为真实凭证使用：
+`backend/src/main/resources/application.yml` 选择 `dev` 或 `prod`。MySQL、Redis、JWT、微信 AppSecret 和 OSS AccessKey 的真实值位于对应的 Git 忽略文件 `application-private-dev.yml`、`application-private-prod.yml`，由 Profile 自动导入。以下字符串仅为字段示例：
 
 ```yaml
 app:
   wechat:
     enabled: true
-    phone-number-enabled: false
     app-id: "wx0000000000000000"
     app-secret: "请填入实际小程序 AppSecret"
   demo-login:
@@ -43,7 +40,7 @@ app:
     object-prefix: "dental/uploads"
 ```
 
-真实的 `app-secret`、`access-key-id` 和 `access-key-secret` 仅填写在本机 `application-local.yml`；其中的演示登录也应为 `false`。重新启动后端才能应用配置修改。前端的 `miniapp/src/manifest.json` 和 `miniapp/project.config.json` 中的小程序 AppID 必须与后端相同；小程序代码不包含 AppSecret 或 OSS AccessKey。
+真实的 `app-secret`、`access-key-id` 和 `access-key-secret` 填写在所选环境的 `application-*.yml`；生产配置的演示登录应为 `false`。重新启动后端才能应用配置修改。前端的 `miniapp/src/manifest.json` 和 `miniapp/project.config.json` 中的小程序 AppID 必须与后端相同；小程序代码不包含 AppSecret 或 OSS AccessKey。
 
 后端启动时，Flyway 会应用 `V3__wechat_identity_case_sensitive.sql`，让 OpenID 唯一标识按大小写区分。不要通过删除迁移历史或清空用户表处理已有数据库。
 
@@ -52,14 +49,12 @@ app:
 使用同一个小程序账号登录微信公众平台，确认以下配置：
 
 1. 在开发设置中取得小程序 AppID、AppSecret，AppSecret 只填写在后端。
-2. 在用户隐私保护指引中声明实际收集的头像、账号标识及用途；以后启用微信手机号授权时补充手机号用途。指引应与实际页面和代码一致。
+2. 在用户隐私保护指引中声明实际收集的头像、账号标识及用途。就诊联系电话由用户填写，指引应与实际页面和代码一致。
 3. 项目通过微信原生 `agreePrivacyAuthorization` 按钮处理平台隐私授权。用户拒绝时保持未授权状态；普通勾选框不能代替微信平台授权。
 4. 如微信后台启用了服务端 IP 白名单，将运行后端的公网出口 IP 按后台要求加入。开发电脑的局域网地址不是公网出口 IP。
 5. 正式环境配置后端 HTTPS 域名为 `request` 和 `uploadFile` 合法域名；用到 `downloadFile` 时配置相应下载域名。直接从 OSS 读取头像时使用 `https://dental-backend.oss-cn-beijing.aliyuncs.com`，如改为自己的文件域名，相应调整配置和域名列表。
 
-头像和手机号不是 `requiredPrivateInfos` 中的位置接口，不能把 `chooseAvatar` 或 `getPhoneNumber` 填入该数组。微信隐私 API 要求基础库至少 2.32.3，头像选择能力要求至少 2.21.2；本项目统一使用支持隐私 API 的基础库版本，并在真机验证。
-
-个人主体模式保持 `phone-number-enabled: false`。以后切换认证非个人主体时，先确认微信后台已开通手机号快速验证权限及调用额度，再将该配置改为 `true`。用户点击 `getPhoneNumber` 按钮取得的 `phoneCode` 与 `uni.login` 的 `loginCode` 是不同凭证；手机号授权也不等于短信验证码登录。
+头像不是 `requiredPrivateInfos` 中的位置接口，不能把 `chooseAvatar` 填入该数组。微信隐私 API 要求基础库至少 2.32.3，头像选择能力要求至少 2.21.2；本项目统一使用支持隐私 API 的基础库版本，并在真机验证。
 
 ## 4. OSS 存储与头像显示
 
@@ -77,7 +72,7 @@ app:
 | `UserVO.avatarUrl` | 数据库保存的稳定链接 |
 | `UserVO.avatarDisplayUrl` | 私有 Bucket 头像的临时读取链接，默认有效 15 分钟 |
 | `UserVO.wechatBound` | 账号已关联微信 OpenID |
-| `UserVO.profileCompleted` | 个人模式身份已关联微信即允许登录，不强制存在头像或手机号；手机号授权模式还需可信手机号 |
+| `UserVO.profileCompleted` | 身份已关联微信即允许登录，不强制存在头像或手机号 |
 
 示例稳定地址：
 
@@ -95,7 +90,7 @@ JSON 请求和响应沿用 `R` 包装。上传是 multipart 二进制请求，�
 
 | 方法与路径 | 用途 | 认证 |
 | --- | --- | --- |
-| `GET /api/v1/auth/wechat-config` | 返回 `enabled`、`phoneNumberEnabled` 两个公开能力开关 | 无 |
+| `GET /api/v1/auth/wechat-config` | 返回 `enabled` 公开能力开关 | 无 |
 | `POST /api/v1/auth/wechat-login` | 验证微信 code，查找或注册微信患者账号 | 无 |
 | `POST /api/v1/me/avatar` | 上传并保存本人头像，文件字段 `file` | `Authorization: Bearer <token>` |
 | `GET /api/v1/me` | 当前账号及头像显示链接 | 业务 token |
@@ -112,7 +107,7 @@ JSON 请求和响应沿用 `R` 包装。上传是 multipart 二进制请求，�
 }
 ```
 
-后端保留 `register: false` 查询已有微信身份的能力，但当前客户端启动不会自动调用它。个人模式不要求传 `phoneCode`；启用微信手机号能力后，新账号或尚未绑定手机号的账号需同时传入原生授权事件返回的 `phoneCode`。
+后端保留 `register: false` 查询已有微信身份的能力，但当前客户端启动不会自动调用它。登录请求仅提交微信身份的 `loginCode` 和注册确认标记。
 
 登录成功时 `R.data` 包含 `token`、`user`。前端收到身份认证成功响应后保存登录状态，头像可为空。头像保存成功时 `R.data` 是更新后的 `UserVO`，属于独立资料更新操作。
 
@@ -122,8 +117,8 @@ JSON 请求和响应沿用 `R` 包装。上传是 multipart 二进制请求，�
 2. 在 `D:\GraduationProject\dental-appointment\miniapp` 运行 `npm run build:mp-weixin`。
 3. 用微信开发者工具导入 `D:\GraduationProject\dental-appointment\miniapp`。根目录 `project.config.json` 的 `miniprogramRoot` 已指向实际编译目录 `dist/build/mp-weixin/`，不要将 `src` 当作可直接运行的原生小程序。
 4. 选择支持 2.32.3 及以上功能的基础库，以有权限的真实微信账号登录开发者工具。开发阶段可按工具设置临时跳过合法域名校验；正式环境需要合法 HTTPS 域名和实际服务器配置。
-5. 本机 `miniapp/.env.local` 已配置 `VITE_API_BASE_URL=http://10.212.182.144:8080/api/v1`。此地址是当前电脑 WLAN 地址，可用于同 Wi-Fi 真机调试；电脑地址变化后需重新填写并构建。真机中的 `127.0.0.1` 指手机自身，不能作为电脑后端地址。
-6. 同一局域网调试时，可以在 `miniapp/.env.local` 配置 `VITE_API_BASE_URL=http://<电脑局域网IP>:8080/api/v1`，允许对应的本机防火墙访问后重新编译。在真机调试模式按微信工具要求处理域名校验；正式使用改为已配置的 HTTPS 域名。
+5. 当前开发配置入口为 `miniapp/.env.development` 的 `VITE_API_BASE_URL`，默认 `http://127.0.0.1:8080/api/v1`；真机中的 `127.0.0.1` 指手机自身，不能作为电脑后端地址。
+6. 同一局域网调试时，将上述 `VITE_API_BASE_URL` 改为 `http://<电脑局域网IP>:8080/api/v1`，允许对应的本机防火墙访问后重新构建、编译。在真机调试模式按微信工具要求处理域名校验；正式使用前修改 `miniapp/.env.production` 为 HTTPS 域名。环境切换见 [ENVIRONMENTS.md](ENVIRONMENTS.md)。
 
 用户操作及实际验证：
 
@@ -143,9 +138,8 @@ JSON 请求和响应沿用 `R` 包装。上传是 multipart 二进制请求，�
 | `WECHAT_REGISTRATION_REQUIRED` | 未注册用户的静默检查结果，显示登录弹窗，由用户主动确认注册 |
 | `WECHAT_CODE_INVALID` | code 失效或重复使用，重新调用微信登录取得新 code |
 | `WECHAT_LOGIN_DISABLED` | 后端微信登录关闭，检查静态配置后重启 |
-| `WECHAT_PHONE_REQUIRED` | 已启用手机号能力但未提供授权凭证；个人小程序保持该能力关闭 |
-| `WECHAT_CAPABILITY_UNAVAILABLE` 或 `getPhoneNumber:fail no permission` | 微信主体或接口权限不足，确认认证、能力开通、额度及配置 |
-| `WECHAT_ACCOUNT_CONFLICT` | 已有 OpenID/手机号唯一约束或账号状态冲突，不自动合并其他用户 |
+| `WECHAT_CAPABILITY_UNAVAILABLE` | 微信登录配置或接口权限不可用，检查 AppID、AppSecret 与平台配置 |
+| `WECHAT_ACCOUNT_CONFLICT` | 微信 OpenID 唯一约束或账号状态冲突，不自动合并其他用户 |
 | `WECHAT_API_UNAVAILABLE` | 后端访问微信失败，检查后端网络和平台服务状况 |
 | 头像上传 413 | 文件超过 2MB，选择更小的图片 |
 | 头像上传 400 | 空文件、图片内容或扩展名不符合要求 |
@@ -171,8 +165,6 @@ JSON 请求和响应沿用 `R` 包装。上传是 multipart 二进制请求，�
 - [微信小程序登录流程](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/login.html)
 - [微信 code2Session](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/code2Session.html)
 - [微信头像昵称填写能力](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/userProfile.html)
-- [微信手机号快速验证组件](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/getPhoneNumber.html)
-- [微信服务端获取手机号](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-info/phone-number/getPhoneNumber.html)
 - [微信隐私授权开发指南](https://developers.weixin.qq.com/miniprogram/dev/framework/user-privacy/PrivacyAuthorize.html)
 - [微信官方 API 类型及对应接口说明](https://github.com/wechat-miniprogram/api-typings/blob/master/types/wx/lib.wx.api.d.ts)
 - [微信官方头像组件与基础库要求](https://github.com/wechat-miniprogram/mp-user-avatar/blob/master/README.md)

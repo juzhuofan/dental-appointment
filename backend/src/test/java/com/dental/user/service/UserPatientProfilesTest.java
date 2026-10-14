@@ -13,7 +13,6 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.dental.audit.service.OperationLogService;
 import com.dental.auth.mapper.AuthTokenMapper;
 import com.dental.common.BusinessException;
-import com.dental.config.WechatProperties;
 import com.dental.file.service.FileUploadService;
 import com.dental.security.CurrentUser;
 import com.dental.user.dto.AccountProfileSaveDTO;
@@ -59,8 +58,7 @@ class UserPatientProfilesTest {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"),
                 PatientProfile.class);
         service = new UserService(userMapper, roleMapper, userRoleMapper, profileMapper,
-                tokenMapper, passwordEncoder, audit, List.of(), fileUploadService,
-                new WechatProperties());
+                tokenMapper, passwordEncoder, audit, List.of(), fileUploadService);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(
                         new CurrentUser(USER_ID, "wechat", "微信用户", List.of("PATIENT"), null, "test"),

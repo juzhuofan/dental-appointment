@@ -2,17 +2,55 @@
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
+function Get-ActiveEnvironment {
+    param([ValidateSet('backend', 'admin-web', 'miniapp')][string]$Component)
+    if ($Component -eq 'backend') {
+        $selectorPath = Join-Path $ProjectRoot 'backend\src\main\resources\application.yml'
+        $selectionPattern = '(?m)^[ \t]{4}active:[ \t]*(dev|prod)[ \t]*$'
+    } else {
+        $selectorPath = Join-Path $ProjectRoot (Join-Path $Component '.env')
+        $selectionPattern = '(?m)^[ \t]*APP_ENV[ \t]*=[ \t]*(development|production)[ \t]*$'
+    }
+    if (-not (Test-Path -LiteralPath $selectorPath)) {
+        throw "缺少环境入口：$selectorPath"
+    }
+    $selectorText = Get-Content -LiteralPath $selectorPath -Raw -Encoding utf8
+    $environmentMatches = [regex]::Matches($selectorText, $selectionPattern)
+    if ($environmentMatches.Count -ne 1) {
+        throw "环境入口必须且只能指定一条有效环境：$selectorPath"
+    }
+    return $environmentMatches[0].Groups[1].Value
+}
+
+function Get-FrontendEnvironmentSettings {
+    param(
+        [ValidateSet('admin-web', 'miniapp')][string]$Component,
+        [ValidateSet('development', 'production')][string]$Environment
+    )
+    $configPath = Join-Path $ProjectRoot (Join-Path $Component ".env.$Environment")
+    if (-not (Test-Path -LiteralPath $configPath)) { throw "缺少前端环境配置：$configPath" }
+    $settings = @{}
+    foreach ($configLine in [System.IO.File]::ReadAllLines($configPath)) {
+        if ($configLine -match '^[ \t]*([A-Z][A-Z0-9_]*)[ \t]*=[ \t]*(.*?)[ \t]*$') {
+            $settings[$Matches[1]] = $Matches[2]
+        }
+    }
+    if (-not $settings['VITE_API_BASE_URL']) { throw "缺少 VITE_API_BASE_URL：$configPath" }
+    return $settings
+}
+
 function Import-LocalEnvironment {
     $configPath = Join-Path $ProjectRoot '.env.local'
     if (-not (Test-Path -LiteralPath $configPath)) {
-        throw '请先复制 .env.example 为 .env.local 并填写本地连接配置。'
+        throw '请先复制 .env.example 为 .env.local 并填写本机 Java/Maven 工具链配置。'
     }
     foreach ($configLine in [System.IO.File]::ReadAllLines($configPath)) {
         if ([string]::IsNullOrWhiteSpace($configLine) -or $configLine.TrimStart().StartsWith('#')) { continue }
         $configPair = $configLine.Split('=', 2)
-        if ($configPair.Count -ne 2 -or $configPair[0] -notmatch '^[A-Z_][A-Z0-9_]*$') { continue }
+        if ($configPair.Count -ne 2 -or $configPair[0] -notin @('JAVA_HOME', 'MAVEN_HOME', 'SERVER_PORT')) { continue }
         [System.Environment]::SetEnvironmentVariable($configPair[0], $configPair[1], 'Process')
     }
+    $env:SPRING_PROFILES_ACTIVE = Get-ActiveEnvironment -Component 'backend'
     if (-not $env:JAVA_HOME -or -not (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
         throw 'JAVA_HOME 必须指向 JDK 17 安装目录。'
     }

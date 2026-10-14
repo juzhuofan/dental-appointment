@@ -159,7 +159,19 @@ test('真实本地 MySQL/Redis 下的预约、权限及逻辑删除集成验证'
       const rows = ok(await api(`/admin/schedules?doctorId=${doctor.id}`, { token: adminToken }));
       assert.equal(rows.records.find(row => row.id === raceSchedule.id).bookedSlots, 1);
       ok(await api(`/admin/schedules/${raceSchedule.id}/status`, { method: 'PATCH', token: adminToken, data: { status: 'CLOSED' } }));
+      assert.equal(ok(await api(`/appointments/${winners[0].data.id}`, { token: adminToken })).status, 'PENDING');
+      const closedRows = ok(await api(`/admin/schedules?doctorId=${doctor.id}`, { token: adminToken }));
+      assert.equal(closedRows.records.find(row => row.id === raceSchedule.id).bookedSlots, 1);
+      const rejectedAfterClose = await api('/appointments', { method: 'POST', token: contenders[0].token,
+        data: { scheduleId: raceSchedule.id, patientProfileId: profiles[0].id } });
+      denied(rejectedAfterClose, [409]);
+      assert.equal(rejectedAfterClose.body.code, 'SCHEDULE_CLOSED');
+      ok(await api(`/admin/schedules/${raceSchedule.id}/status`, { method: 'PATCH', token: adminToken, data: { status: 'CLOSED' } }));
+      assert.equal(ok(await api(`/appointments/${winners[0].data.id}`, { token: adminToken })).status, 'PENDING');
+      ok(await api(`/admin/schedules/${raceSchedule.id}/status`, { method: 'PATCH', token: adminToken, data: { status: 'CANCELLED' } }));
       assert.equal(ok(await api(`/appointments/${winners[0].data.id}`, { token: adminToken })).status, 'CANCELLED');
+      const cancelledRows = ok(await api(`/admin/schedules?doctorId=${doctor.id}`, { token: adminToken }));
+      assert.equal(cancelledRows.records.find(row => row.id === raceSchedule.id).bookedSlots, 0);
     });
     await t.test('公告逻辑删除后不出现在公开列表，审计日志可追踪', async () => {
       const notice = ok(await api('/admin/notices', { method: 'POST', token: adminToken,

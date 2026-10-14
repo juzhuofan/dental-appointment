@@ -1,5 +1,8 @@
 ﻿param([switch]$SkipInstall)
 . (Join-Path $PSScriptRoot 'Common.ps1')
+$activeEnvironment = Get-ActiveEnvironment -Component 'backend'
+$adminEnvironment = Get-ActiveEnvironment -Component 'admin-web'
+$miniappEnvironment = Get-ActiveEnvironment -Component 'miniapp'
 Import-LocalEnvironment
 $statePath = Join-Path $ProjectRoot '.local\running.json'
 if (Test-Path -LiteralPath $statePath) {
@@ -13,8 +16,13 @@ if (Test-Path -LiteralPath $statePath) {
     }
 }
 $mavenCommand = Resolve-MavenCommand
+$mavenArguments = if ($activeEnvironment -eq 'production') {
+    @('-DskipTests', 'package', '-B', '-ntp')
+} else {
+    @('verify', '-B', '-ntp')
+}
 Push-Location (Join-Path $ProjectRoot 'backend')
-try { Invoke-CheckedCommand $mavenCommand @('verify', '-B', '-ntp') } finally { Pop-Location }
+try { Invoke-CheckedCommand $mavenCommand $mavenArguments } finally { Pop-Location }
 foreach ($clientProject in @('admin-web', 'miniapp')) {
     Push-Location (Join-Path $ProjectRoot $clientProject)
     try {
@@ -26,4 +34,4 @@ foreach ($clientProject in @('admin-web', 'miniapp')) {
         }
     } finally { Pop-Location }
 }
-Write-Host '构建完成。微信开发者工具请导入 miniapp/dist/build/mp-weixin。'
+Write-Host ("构建完成：后端 $activeEnvironment；管理端 $adminEnvironment；小程序 $miniappEnvironment。微信开发者工具请导入 miniapp/dist/build/mp-weixin。")

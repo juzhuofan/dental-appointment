@@ -6,8 +6,9 @@ import { Search, Refresh } from '@element-plus/icons-vue';
 import { api } from '../api/http';
 import { useAuthStore } from '../stores/auth';
 import { usePagedList } from '../composables/usePagedList';
+import { useAppointmentDetail } from '../composables/useAppointmentDetail';
 import type { Appointment, AppointmentStatus, Department, Doctor, PageResult } from '../types';
-import { appointmentLabels, errorText, formatTime, isDismissed } from '../utils/format';
+import { appointmentLabels, formatTime, isDismissed } from '../utils/format';
 import PageHeading from '../components/PageHeading.vue';
 import StatusTag from '../components/StatusTag.vue';
 const auth = useAuthStore();
@@ -19,10 +20,8 @@ const { records, paging, loading, error, load } = usePagedList<Appointment>('/ad
   keyword: filters.keyword.trim() || undefined, status: filters.status || undefined, doctorId: filters.doctorId || undefined,
   departmentId: filters.departmentId || undefined, dateFrom: filters.dates?.[0] || undefined, dateTo: filters.dates?.[1] || undefined,
 }));
-const drawer = ref(false);
-const detail = ref<Appointment | null>(null);
-const detailBusy = ref(false);
-const detailError = ref('');
+const detailPanel = useAppointmentDetail((id) => api.get<Appointment>(`/appointments/${id}`));
+const { drawer, detail, detailBusy, detailError } = detailPanel;
 const changing = ref<number | null>(null);
 async function loadOptions(): Promise<void> {
   if (!auth.isAdmin) return;
@@ -32,10 +31,7 @@ async function loadOptions(): Promise<void> {
   } catch { /* 请求层已展示错误，预约列表仍可独立使用。 */ }
 }
 async function openDetail(row: Appointment): Promise<void> {
-  drawer.value = true; detail.value = null; detailBusy.value = true; detailError.value = '';
-  try { detail.value = await api.get<Appointment>(`/appointments/${row.id}`); }
-  catch (cause) { detailError.value = errorText(cause); }
-  finally { detailBusy.value = false; }
+  await detailPanel.open(row.id);
 }
 function actions(row: Appointment): AppointmentStatus[] {
   if (row.status === 'PENDING' && auth.isAdmin) return ['CONFIRMED', 'CANCELLED'];
@@ -43,6 +39,7 @@ function actions(row: Appointment): AppointmentStatus[] {
   return [];
 }
 async function changeStatus(row: Appointment, status: AppointmentStatus): Promise<void> {
+  const detailContext = detailPanel.capture(row.id);
   try {
     let reason: string | undefined;
     if (status === 'CANCELLED') {
@@ -60,19 +57,20 @@ async function changeStatus(row: Appointment, status: AppointmentStatus): Promis
     else await api.patch(`/admin/appointments/${row.id}/status`, { status, reason });
     ElMessage.success(`预约已更新为「${appointmentLabels[status]}」`);
     await load();
-    if (detail.value?.id === row.id) detail.value = await api.get<Appointment>(`/appointments/${row.id}`);
-  } catch (cause) { if (!isDismissed(cause) && drawer.value) detailError.value = errorText(cause); }
-  finally { changing.value = null; }
+    await detailPanel.refresh(detailContext);
+  } catch (cause) { if (!isDismissed(cause)) detailPanel.reportError(detailContext, cause); }
+  finally { if (changing.value === row.id) changing.value = null; }
 }
 async function remove(row: Appointment): Promise<void> {
+  const detailContext = detailPanel.capture(row.id);
   try {
     await ElMessageBox.confirm('此操作会隐藏预约记录；如预约仍有效，会先取消并释放号源。历史数据与操作记录保留。', '删除预约', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' });
     changing.value = row.id;
     await api.delete(`/admin/appointments/${row.id}`); ElMessage.success('预约已删除');
-    if (detail.value?.id === row.id) drawer.value = false;
+    detailPanel.close(detailContext);
     await load();
-  } catch (cause) { if (!isDismissed(cause) && drawer.value) detailError.value = errorText(cause); }
-  finally { changing.value = null; }
+  } catch (cause) { if (!isDismissed(cause)) detailPanel.reportError(detailContext, cause); }
+  finally { if (changing.value === row.id) changing.value = null; }
 }
 function reset(): void { filters.keyword = ''; filters.status = ''; filters.doctorId = ''; filters.departmentId = ''; filters.dates = []; void load(true); }
 onMounted(() => { void load(); void loadOptions(); });

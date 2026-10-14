@@ -12,6 +12,7 @@ export const router = createRouter({
         { path: 'dashboard', component: () => import('./views/DashboardView.vue'), meta: { title: '工作台' } },
         { path: 'appointments', component: () => import('./views/AppointmentsView.vue'), meta: { title: '预约管理' } },
         { path: 'schedules', component: () => import('./views/SchedulesView.vue'), meta: { title: '医生排班' } },
+        { path: 'doctor-leaves', component: () => import('./views/DoctorLeavesView.vue'), meta: { title: '请假管理' } },
         ...['departments', 'doctors', 'notices', 'users'].map((resource, index) => ({
           path: resource, component: () => import('./views/ManagementView.vue'), props: { resource },
           meta: { title: ['科室管理', '医生档案', '诊所公告', '账号管理'][index], adminOnly: true },

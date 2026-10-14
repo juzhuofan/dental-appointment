@@ -27,7 +27,7 @@ export function notifyError(error) {
 }
 
 export function request(path, options = {}) {
-  const { method = 'GET', data, query, auth = true, redirectOn401 = true, headers = {} } = options;
+  const { method = 'GET', data, query, auth = true, redirectOn401 = true, headers = {}, timeout = 15000 } = options;
   const search = Object.entries(query || {})
     .filter(([, value]) => value !== '' && value !== undefined && value !== null)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
@@ -39,10 +39,11 @@ export function request(path, options = {}) {
       method,
       data: method === 'GET' ? undefined : { data: data ?? {} },
       header: { 'Content-Type': 'application/json', ...(auth && token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
-      timeout: 15000,
+      timeout,
       success(response) {
         const body = response.data;
-        if (response.statusCode === 401 && auth) {
+        const staleSession = auth && token !== getToken();
+        if (response.statusCode === 401 && auth && !staleSession) {
           clearSession({ expired: true });
           if (redirectOn401 && !redirecting) {
             redirecting = true;
@@ -64,6 +65,7 @@ export function request(path, options = {}) {
           error.code = body?.code;
           error.status = response.statusCode;
           error.traceId = body?.traceId;
+          if (response.statusCode === 401 && staleSession) error.staleSession = true;
           reject(error);
         }
       },
@@ -75,6 +77,13 @@ export function request(path, options = {}) {
 }
 
 export const api = {
+  aiConfig: () => request('/ai/config', { auth: false }),
+  aiGuide: data => request('/ai/guide', { method: 'POST', data, timeout: 35000 }),
+  aiConversations: (page = 1) => request('/ai/conversations', { query: { page, size: 20 } }),
+  createAiConversation: () => request('/ai/conversations', { method: 'POST', data: {} }),
+  aiMessages: (id, beforeId) => request(`/ai/conversations/${id}/messages`, { query: { beforeId } }),
+  sendAiMessage: (id, data) => request(`/ai/conversations/${id}/messages`, { method: 'POST', data, timeout: 35000 }),
+  deleteAiConversation: id => request(`/ai/conversations/${id}`, { method: 'DELETE' }),
   clinic: () => request('/clinic', { auth: false }),
   departments: () => request('/departments', { auth: false, query: { page: 1, size: 100 } }),
   doctors: (query = {}) => request('/doctors', { auth: false, query: { page: 1, size: 100, ...query } }),

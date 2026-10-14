@@ -1,5 +1,7 @@
 package com.dental.user.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.dental.common.BaseEntity;
 
@@ -14,6 +16,7 @@ public class SysUser extends BaseEntity {
     private String wechatOpenid;
     private String demoDeviceHash;
     private String displayName;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String avatarUrl;
     private Integer status;
     private LocalDateTime lastLoginAt;

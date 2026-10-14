@@ -124,7 +124,7 @@
 ### 4.3 排班与预约规则
 
 1. `doctor_schedule` 表的一行表示一个可预约时间段，而不是整天；例如医生在同一天上午和下午有两行。
-2. 排班仅在 `PUBLISHED` 状态且未过预约截止时间时开放预约；停诊排班不允许新预约。
+2. 排班仅在 `PUBLISHED` 状态且未过预约截止时间时开放预约。`CLOSED` 仅暂停新预约，已有预约及占号保留；`CANCELLED` 停诊、删除排班、停用医生或科室时，才在事务内取消活动预约并释放号源。
 3. 预约创建必须满足：当前用户为患者、排班有效、时段未过、余量大于零、患者资料有效、同一患者不存在该排班的有效预约。
 4. 同一患者同一排班最多一条有效预约（有效状态为 `PENDING`、`CONFIRMED`）。
 5. 取消截止时间建议为 `start_time - cancel_before_minutes`，默认 120 分钟，由系统配置管理。已完成/爽约/已取消记录不能取消。
@@ -475,7 +475,7 @@ Controller 写接口接收 `R<AppointmentCreateDTO>`、`R<DepartmentSaveDTO>` �
 
 推荐数据库条件更新方案，降低锁复杂度。一个事务内依次完成：
 
-1. 从认证上下文取得 `patient_user_id`，验证就诊人资料属于该用户。
+1. 从认证上下文取得 `patient_user_id`，验证就诊人资料属于该用户。新建预约占号前校验姓名去除首尾空格后非空、不超过 80 字及有效 11 位大陆手机号；不完整返回 `PATIENT_PROFILE_INCOMPLETE`，不占号。已完成的幂等请求直接重放原预约当前状态。
 2. 对排班执行条件扣减：仅当 `status='PUBLISHED'`、`start_time` 未到、`booked_slots < total_slots` 时执行 `booked_slots = booked_slots + 1`；检查受影响行数必须为 1。
 3. 使用有效预约唯一键 `patientId:scheduleId` 插入预约，并保存医生、科室、就诊人、时段快照。
 4. 插入失败（包括唯一键冲突）时事务回滚，号源扣减随之回滚；将数据库冲突映射为 `DUPLICATE_APPOINTMENT`。

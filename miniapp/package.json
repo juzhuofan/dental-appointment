@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "description": "口腔诊所预约微信小程序（uni-app Vue 3）",
-  "engines": { "node": "24.18.0" },
+  "engines": {
+    "node": "24.18.0"
+  },
   "scripts": {
-    "dev:mp-weixin": "uni -p mp-weixin",
-    "build:mp-weixin": "uni build -p mp-weixin",
-    "dev:h5": "uni",
-    "build:h5": "uni build"
+    "dev:mp-weixin": "node ../scripts/with-environment.mjs miniapp dev:mp-weixin",
+    "build:mp-weixin": "node ../scripts/with-environment.mjs miniapp build:mp-weixin",
+    "dev:h5": "node ../scripts/with-environment.mjs miniapp dev:h5",
+    "build:h5": "node ../scripts/with-environment.mjs miniapp build:h5"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5020620260917001",
@@ -25,6 +27,7 @@
     "@dcloudio/vite-plugin-uni": "3.0.0-5020620260917001",
     "@vue/runtime-core": "3.4.21",
     "rollup": "4.14.3",
+    "terser": "5.51.2",
     "vite": "5.2.8"
   }
 }

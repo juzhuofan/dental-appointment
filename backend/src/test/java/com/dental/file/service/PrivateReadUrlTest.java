@@ -72,6 +72,25 @@ class PrivateReadUrlTest {
         assertTrue(expires.isBefore(after.plus(16, ChronoUnit.MINUTES)));
     }
 
+    @Test
+    void displayUrlSignsOwnPrivateObjectWithoutChangingStoredUrl() throws Exception {
+        String stored = BASE_URL + "/" + OBJECT_KEY;
+        String signed = stored + "?Expires=123&Signature=test";
+        when(clientProvider.getIfAvailable()).thenReturn(client);
+        when(client.generatePresignedUrl(any(GeneratePresignedUrlRequest.class)))
+                .thenReturn(URI.create(signed).toURL());
+
+        assertEquals(signed, service.displayUrl(stored));
+    }
+
+    @Test
+    void displayUrlKeepsExternalImageAddress() {
+        String external = "https://images.example.test/doctor.png";
+        assertEquals(external, service.displayUrl(external));
+        assertNull(service.displayUrl(null));
+        verifyNoInteractions(client, clientProvider);
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {

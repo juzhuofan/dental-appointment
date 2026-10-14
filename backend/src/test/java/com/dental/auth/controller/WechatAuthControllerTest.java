@@ -39,11 +39,11 @@ class WechatAuthControllerTest {
     }
 
     @Test
-    void publishesOnlyCapabilityFlagsInUnifiedResponse() throws Exception {
+    void publishesOnlyWechatAvailabilityInUnifiedResponse() throws Exception {
         mvc.perform(get("/api/v1/auth/wechat-config"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.data.enabled").value(true))
-                .andExpect(jsonPath("$.data.phoneNumberEnabled").value(false))
+                .andExpect(jsonPath("$.data.phoneNumberEnabled").doesNotExist())
                 .andExpect(jsonPath("$.data.appSecret").doesNotExist())
                 .andExpect(jsonPath("$.data.appId").doesNotExist());
     }

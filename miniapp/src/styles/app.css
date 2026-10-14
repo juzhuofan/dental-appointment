@@ -1,4 +1,27 @@
 page { background: #f7f9f7; color: #243b34; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; font-size: 28rpx; }
+/* Clinic green (#12836d): primary actions; sage neutrals: profile surfaces and readable supporting copy. */
+page {
+  --account-accent: #12836d;
+  --account-accent-hover: #0f7864;
+  --account-accent-pressed: #0b6353;
+  --account-on-accent: #f7fffb;
+  --account-surface: #fbfdfb;
+  --account-field: #f0f5f2;
+  --account-pressed-surface: #e1eee6;
+  --account-border: #cfdfd5;
+  --account-text: #243b34;
+  --account-muted: #62776d;
+  --account-mask: rgba(20, 46, 36, .44);
+  --account-danger: #a34738;
+  --account-danger-surface: #fff2ee;
+  --account-success: #107257;
+  --account-success-surface: #e2f1e8;
+  --account-title-size: 36rpx;
+  --account-body-size: 30rpx;
+  --account-small-size: 26rpx;
+  --account-input-size: 32rpx;
+  --account-icon-size: 44rpx;
+}
 view, text, input, textarea, button { box-sizing: border-box; }
 button { margin: 0; font-size: 28rpx; line-height: 1.5; }
 button::after { border: none; }

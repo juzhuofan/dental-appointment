@@ -2,8 +2,15 @@
 .env
 .env.*
 !.env.example
-backend/src/main/resources/application-local.yml
+!admin-web/.env
+!admin-web/.env.development
+!admin-web/.env.production
+!miniapp/.env
+!miniapp/.env.development
+!miniapp/.env.production
 .local/
+backend/src/main/resources/application-private-*.yml
+.finesse/
 .tools/
 *.log
 .idea/

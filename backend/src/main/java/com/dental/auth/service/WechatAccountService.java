@@ -19,7 +19,6 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 /** 微信账户的短数据库事务；唯一索引保证同一微信身份并发开户不重复。 */
 @Service
@@ -51,14 +50,14 @@ public class WechatAccountService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public LoginVO authenticate(String openid, String trustedPhone, boolean register) {
+    public LoginVO authenticate(String openid, boolean register) {
         SysUser user = findByOpenid(openid);
         boolean created = false;
         if (user == null) {
             if (!register) {
                 throw registrationRequired();
             }
-            user = createUser(openid, trustedPhone);
+            user = createUser(openid);
             try {
                 // 不先锁不存在的 openid，避免并发首次开户形成 gap-lock 死锁。
                 userMapper.insert(user);
@@ -73,45 +72,18 @@ public class WechatAccountService {
             user = lockByOpenid(openid);
         }
         requireEnabledPatient(user, created);
-        if (StringUtils.hasText(trustedPhone) && StringUtils.hasText(user.getPhone())
-                && !trustedPhone.equals(user.getPhone())) {
-            throw accountConflict();
-        }
-        if (StringUtils.hasText(trustedPhone) && !StringUtils.hasText(user.getPhone())) {
-            SysUser phoneOwner = userMapper.selectOne(new LambdaQueryWrapper<SysUser>()
-                    .eq(SysUser::getPhone, trustedPhone));
-            if (phoneOwner != null && !Objects.equals(phoneOwner.getId(), user.getId())) {
-                throw accountConflict();
-            }
-            user.setPhone(trustedPhone);
-            user.setUpdatedAt(utcNow());
-            try {
-                userMapper.updateById(user);
-            } catch (DuplicateKeyException exception) {
-                throw accountConflict();
-            }
-        }
         if (created) {
-            userService.initializeWechatPatient(user);
-        } else if (StringUtils.hasText(trustedPhone)) {
-            // 只有角色已确认的患者才能同步服务端授权的手机号到患者档案。
             userService.initializeWechatPatient(user);
         }
         return authService.issueWechat(user);
     }
 
-    private SysUser createUser(String openid, String trustedPhone) {
-        if (StringUtils.hasText(trustedPhone)
-                && userMapper.selectCount(new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getPhone, trustedPhone)) > 0) {
-            // 手机号不能作为合并已有患者或管理员账号的依据。
-            throw accountConflict();
-        }
+    private SysUser createUser(String openid) {
         SysUser user = new SysUser();
         user.setUsername("wx_" + sha256(openid).substring(0, HASH_USERNAME_LENGTH));
         user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setWechatOpenid(openid);
-        user.setPhone(StringUtils.hasText(trustedPhone) ? trustedPhone : null);
+        user.setPhone(null);
         user.setDisplayName("微信用户");
         user.setStatus(ACCOUNT_ENABLED);
         user.setDeleted(NOT_DELETED);
@@ -148,7 +120,7 @@ public class WechatAccountService {
 
     private static BusinessException accountConflict() {
         return BusinessException.conflict("WECHAT_ACCOUNT_CONFLICT",
-                "微信身份或手机号已被其他账号使用，请联系管理员");
+                "微信身份已被其他账号使用，请联系管理员");
     }
 
     private static String sha256(String source) {

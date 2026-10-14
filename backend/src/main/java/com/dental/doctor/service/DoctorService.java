@@ -13,6 +13,7 @@ import com.dental.doctor.dto.DoctorSaveDTO;
 import com.dental.doctor.entity.DoctorEntity;
 import com.dental.doctor.mapper.DoctorMapper;
 import com.dental.doctor.vo.DoctorVO;
+import com.dental.file.service.FileUploadService;
 import com.dental.schedule.service.ScheduleService;
 import com.dental.user.service.UserService;
 import java.util.List;
@@ -33,15 +34,17 @@ public class DoctorService {
     private final UserService userService;
     private final ScheduleService scheduleService;
     private final OperationLogService operationLogService;
+    private final FileUploadService fileUploadService;
 
     public DoctorService(DoctorMapper doctorMapper, DepartmentQueryService departmentQueryService,
                          UserService userService, ScheduleService scheduleService,
-                         OperationLogService operationLogService) {
+                         OperationLogService operationLogService, FileUploadService fileUploadService) {
         this.doctorMapper = doctorMapper;
         this.departmentQueryService = departmentQueryService;
         this.userService = userService;
         this.scheduleService = scheduleService;
         this.operationLogService = operationLogService;
+        this.fileUploadService = fileUploadService;
     }
 
     public PageResult<DoctorVO> list(DoctorQueryDTO query, boolean publicOnly) {
@@ -182,7 +185,7 @@ public class DoctorService {
         return new DoctorVO(doctor.getId(), doctor.getUserId(), doctor.getDepartmentId(),
                 names.getOrDefault(doctor.getDepartmentId(), "已删除科室"), doctor.getName(),
                 doctor.getTitle(), doctor.getSpecialty(), doctor.getIntroduction(),
-                doctor.getAvatarUrl(), doctor.getStatus());
+                doctor.getAvatarUrl(), fileUploadService.displayUrl(doctor.getAvatarUrl()), doctor.getStatus());
     }
 
     private static boolean hasText(String value) {

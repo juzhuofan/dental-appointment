@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios, { type AxiosRequestConfig } from 'axios';
 import { ElMessage } from 'element-plus';
-import type { R } from '../types';
+import type { FileUploadResult, R } from '../types';
 
 export const TOKEN_KEY = 'dental.admin.token';
 const http = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1', timeout: 15000 });
@@ -20,10 +20,9 @@ export class ApiError extends Error {
   }
 }
 
-/** JSON 写请求始终包装为 R.data；查询和删除通过路径/查询参数传递。 */
-export async function request<T>(method: string, url: string, data?: unknown, params?: object): Promise<T> {
+async function send<T>(config: AxiosRequestConfig): Promise<T> {
   try {
-    const response = await http.request<R<T>>({ method, url, params, data: data === undefined ? undefined : { data } });
+    const response = await http.request<R<T>>(config);
     const envelope = response.data;
     if (!envelope || envelope.code !== 'OK') {
       throw new ApiError(envelope?.message || '服务返回了无法识别的结果', envelope?.code || 'INVALID_RESPONSE');
@@ -46,9 +45,22 @@ export async function request<T>(method: string, url: string, data?: unknown, pa
     } else {
       error = new ApiError(cause instanceof Error ? cause.message : '操作失败，请重试', 'UNKNOWN_ERROR');
     }
-    ElMessage.error(error.message);
+    // The leave screen presents this expected impact check as an explicit confirmation.
+    if (error.code !== 'LEAVE_APPOINTMENT_CONFIRMATION_REQUIRED') ElMessage.error(error.message);
     throw error;
   }
+}
+
+/** JSON 写请求始终包装为 R.data；查询和删除通过路径/查询参数传递。 */
+export function request<T>(method: string, url: string, data?: unknown, params?: object): Promise<T> {
+  return send<T>({ method, url, params, data: data === undefined ? undefined : { data } });
+}
+
+/** 图片原文件经后端写入 OSS；浏览器只接收稳定 URL，后续随业务表单保存。 */
+export function uploadFile(file: File): Promise<FileUploadResult> {
+  const form = new FormData();
+  form.append('file', file);
+  return send<FileUploadResult>({ method: 'POST', url: '/files/upload', data: form, timeout: 60000 });
 }
 
 export const api = {
@@ -57,4 +69,5 @@ export const api = {
   put: <T>(url: string, data: unknown) => request<T>('PUT', url, data),
   patch: <T>(url: string, data: unknown) => request<T>('PATCH', url, data),
   delete: <T>(url: string) => request<T>('DELETE', url),
+  uploadFile,
 };

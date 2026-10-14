@@ -137,6 +137,15 @@ public class FileUploadService {
         return client.generatePresignedUrl(request).toExternalForm();
     }
 
+    /** 展示时为本 Bucket 的私有对象生成临时地址；数据库始终保存原始 URL。 */
+    public String displayUrl(String storedUrl) {
+        if (!StringUtils.hasText(storedUrl)) {
+            return null;
+        }
+        String signed = signedReadUrl(storedUrl);
+        return signed == null ? storedUrl : signed;
+    }
+
     private static BusinessException uploadFailed() {
         return new BusinessException("FILE_UPLOAD_FAILED", "文件上传失败，请稍后重试",
                 HttpStatus.BAD_GATEWAY);

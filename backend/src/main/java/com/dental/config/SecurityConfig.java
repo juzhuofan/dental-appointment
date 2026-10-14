@@ -42,7 +42,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/demo-login",
                                 "/api/v1/auth/wechat-login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/wechat-config").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/wechat-config", "/api/v1/ai/config").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/clinic", "/api/v1/departments",
                                 "/api/v1/doctors", "/api/v1/doctors/**", "/api/v1/schedules",
                                 "/api/v1/schedules/**", "/api/v1/notices").permitAll()

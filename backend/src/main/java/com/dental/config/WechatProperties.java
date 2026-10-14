@@ -8,7 +8,6 @@ import org.springframework.util.StringUtils;
 public class WechatProperties {
 
     private boolean enabled;
-    private boolean phoneNumberEnabled;
     private String appId = "";
     private String appSecret = "";
 
@@ -27,14 +26,6 @@ public class WechatProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public boolean isPhoneNumberEnabled() {
-        return phoneNumberEnabled;
-    }
-
-    public void setPhoneNumberEnabled(boolean phoneNumberEnabled) {
-        this.phoneNumberEnabled = phoneNumberEnabled;
     }
 
     public String getAppId() {

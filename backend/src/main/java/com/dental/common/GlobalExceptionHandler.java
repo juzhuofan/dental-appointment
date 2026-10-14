@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -34,6 +35,15 @@ public class GlobalExceptionHandler {
                 ? "请求参数不正确"
                 : exception.getBindingResult().getAllErrors().get(0).getDefaultMessage();
         return ResponseEntity.badRequest().body(R.error("INVALID_ARGUMENT", message));
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<R<Void>> invalidMethod(HandlerMethodValidationException exception) {
+        if (exception.isForReturnValue()) {
+            LOGGER.error("Response validation failed", exception);
+            return ResponseEntity.internalServerError().body(R.error("INTERNAL_ERROR", "服务返回数据不完整"));
+        }
+        return ResponseEntity.badRequest().body(R.error("INVALID_ARGUMENT", "请求参数不正确，请检查必填项"));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

@@ -1,6 +1,7 @@
 {
   "pages": [
     { "path": "pages/home/index", "style": { "navigationBarTitleText": "微笑口腔", "enablePullDownRefresh": true } },
+    { "path": "pages/ai/index", "style": { "navigationBarTitleText": "AI 助手", "disableScroll": true } },
     { "path": "pages/appointments/index", "style": { "navigationBarTitleText": "我的预约", "enablePullDownRefresh": true } },
     { "path": "pages/me/index", "style": { "navigationBarTitleText": "个人中心" } },
     { "path": "pages/login/index", "style": { "navigationBarTitleText": "欢迎登录" } },
@@ -22,6 +23,7 @@
     "color": "#7a8b86", "selectedColor": "#12836d", "backgroundColor": "#ffffff", "borderStyle": "white",
     "list": [
       { "pagePath": "pages/home/index", "text": "首页" },
+      { "pagePath": "pages/ai/index", "text": "AI 助手" },
       { "pagePath": "pages/appointments/index", "text": "预约" },
       { "pagePath": "pages/me/index", "text": "我的" }
     ]

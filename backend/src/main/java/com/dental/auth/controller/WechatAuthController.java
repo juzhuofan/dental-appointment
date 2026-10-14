@@ -33,7 +33,6 @@ public class WechatAuthController {
 
     @GetMapping("/wechat-config")
     public R<Map<String, Boolean>> configuration() {
-        return R.ok(Map.of("enabled", properties.isEnabled(),
-                "phoneNumberEnabled", properties.isEnabled() && properties.isPhoneNumberEnabled()));
+        return R.ok(Map.of("enabled", properties.isEnabled()));
     }
 }

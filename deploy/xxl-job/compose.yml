@@ -1,0 +1,51 @@
+name: dental-xxl-job
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_DATABASE: xxl_job
+      MYSQL_USER: xxl_job
+      MYSQL_PASSWORD: ${XXL_JOB_DB_PASSWORD:?Fill XXL_JOB_DB_PASSWORD in deploy/xxl-job/.env}
+      MYSQL_ROOT_PASSWORD: ${XXL_JOB_MYSQL_ROOT_PASSWORD:?Fill XXL_JOB_MYSQL_ROOT_PASSWORD in deploy/xxl-job/.env}
+      XXL_JOB_ADMIN_USERNAME: ${XXL_JOB_ADMIN_USERNAME:?Fill XXL_JOB_ADMIN_USERNAME in deploy/xxl-job/.env}
+      XXL_JOB_ADMIN_PASSWORD: ${XXL_JOB_ADMIN_PASSWORD:?Fill XXL_JOB_ADMIN_PASSWORD in deploy/xxl-job/.env}
+      XXL_JOB_EXECUTOR_APPNAME: ${XXL_JOB_EXECUTOR_APPNAME:-dental-appointment-executor}
+      XXL_JOB_EXECUTOR_ACCESS_TOKEN: ${XXL_JOB_EXECUTOR_ACCESS_TOKEN:?Fill XXL_JOB_EXECUTOR_ACCESS_TOKEN in deploy/xxl-job/.env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init/00-schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+      - ./init/01-bootstrap.sh:/docker-entrypoint-initdb.d/01-bootstrap.sh:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "--host=127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  admin:
+    image: xuxueli/xxl-job-admin:3.5.0
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    entrypoint: ["java", "-Xms128m", "-Xmx384m", "-Duser.timezone=Asia/Shanghai", "-jar", "/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: xxl_job
+      SPRING_DATASOURCE_PASSWORD: ${XXL_JOB_DB_PASSWORD:?Fill XXL_JOB_DB_PASSWORD in deploy/xxl-job/.env}
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: 1
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 8
+    ports:
+      - "127.0.0.1:${XXL_JOB_ADMIN_PORT:-18080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - admin-logs:/data/applogs
+
+volumes:
+  mysql-data:
+  admin-logs:

@@ -4,6 +4,9 @@
   "private": true,
   "description": "Local verification for the dental clinic appointment project",
   "scripts": {
+    "test:unit": "node --test \"tests/unit/*.test.mjs\"",
+    "test:regression-ui": "powershell -NoProfile -File scripts/Test-Regressions.ps1",
+    "test:ai": "node --test tests/unit/ai-chat.test.mjs",
     "test:miniapp-auth": "node --test tests/unit/wechat-login.test.mjs",
     "test:api": "node --test tests/api.integration.test.mjs",
     "test:ui": "playwright test"

@@ -2,20 +2,19 @@ import { reactive } from 'vue';
 
 const TOKEN_KEY = 'dental.token';
 const USER_KEY = 'dental.user';
-const TAB_PAGES = ['/pages/home/index', '/pages/appointments/index', '/pages/me/index'];
+const TAB_PAGES = ['/pages/home/index', '/pages/ai/index', '/pages/appointments/index', '/pages/me/index'];
 
 export const authState = reactive({
   ready: false,
   needsBootstrap: false,
   status: 'idle',
   user: null,
-  config: { enabled: false, phoneNumberEnabled: false },
+  config: { enabled: false },
   dialogVisible: false,
   privacyRequired: false,
   privacyContractName: '',
   error: '',
-  busy: false,
-  justLoggedIn: false
+  busy: false
 });
 
 export const getToken = () => uni.getStorageSync(TOKEN_KEY) || '';
@@ -33,7 +32,6 @@ export function saveUser(user) {
 export function saveSession(session) {
   uni.setStorageSync(TOKEN_KEY, session.token);
   saveUser(session.user);
-  authState.justLoggedIn = true;
 }
 
 export function clearSession({ expired = false } = {}) {
@@ -42,7 +40,6 @@ export function clearSession({ expired = false } = {}) {
   authState.user = null;
   authState.status = 'guest';
   authState.needsBootstrap = expired;
-  authState.justLoggedIn = false;
 }
 
 export function navigateAfterLogin(next = '/pages/me/index') {

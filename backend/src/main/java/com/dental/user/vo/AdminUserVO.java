@@ -8,6 +8,8 @@ public record AdminUserVO(
         Long id,
         String username,
         String displayName,
+        String avatarUrl,
+        String avatarDisplayUrl,
         String role,
         List<String> roles,
         Integer status,
